@@ -19,6 +19,10 @@ def parser():
     p=argparse.ArgumentParser(prog="career-ax", description="Evidence-gated autonomous research AX Pilot")
     sub=p.add_subparsers(dest="command",required=True)
     sub.add_parser("doctor",help="Check local environment; no external calls")
+    review = sub.add_parser("submission-review", help="Submission Review skeleton; synthetic Stub only")
+    review.add_argument("--request", type=Path, required=True, help="Curated T0 JSON; no gold/prior AI/posthoc data")
+    review.add_argument("--runner", choices=["stub", "unimplemented"], default="unimplemented")
+    review.add_argument("--output-dir", type=Path, default=Path("runs/submission-review"))
     ev=sub.add_parser("eval-dev",help="Run synthetic-only Mock smoke suite (NOT real AI quality Eval)")
     ev.add_argument("--output",type=Path,default=Path("runs/mock_smoke.json"))
     inv=sub.add_parser("inventory",help="Inspect verified manifest inputs")
@@ -42,6 +46,30 @@ def parser():
 
 def main(argv=None):
     args=parser().parse_args(argv)
+    if args.command == "submission-review":
+        from .submission_review import (
+            ReviewRequest, SubmissionStubRunner, build_review_graph,
+            markdown_review, stub_analyst, stub_critic,
+        )
+        try:
+            request = ReviewRequest.model_validate_json(args.request.read_text(encoding="utf-8"))
+            if args.runner != "stub":
+                raise NotImplementedError("Analyst/Critic execution TODO; use --runner stub for synthetic wiring checks")
+            result = build_review_graph(
+                SubmissionStubRunner(), analyst=stub_analyst, critic=stub_critic,
+            ).invoke({"request": request})["result"]
+            args.output_dir.mkdir(parents=True, exist_ok=True)
+            # Fixed filenames: user-supplied request_id never becomes a path.
+            jsonfile, mdfile = args.output_dir / "review.json", args.output_dir / "review.md"
+            jsonfile.write_text(result.model_dump_json(indent=2), encoding="utf-8")
+            mdfile.write_text(markdown_review(result), encoding="utf-8")
+            print(json.dumps({"status": result.status, "real_llm_executed": result.real_llm_executed,
+                              "structural_checks_passed": result.verification.passed,
+                              "report": str(jsonfile), "markdown_report": str(mdfile)}, ensure_ascii=False, indent=2))
+            return 0 if result.verification.passed else 2
+        except (OSError, ValueError, RuntimeError) as exc:
+            print(f"ERROR [{type(exc).__name__}]: {exc}", file=sys.stderr)
+            return 2
     if args.command=="doctor":
         print(json.dumps({"python":sys.version.split()[0],"codex_cli_found":bool(shutil.which("codex")),
                           "default_mode":"mock","model_cost_metered":False,

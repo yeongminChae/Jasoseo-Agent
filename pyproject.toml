@@ -7,7 +7,7 @@ name = "career-intelligence-ax-pilot"
 version = "0.1.0"
 description = "Evidence-gated autonomous research loop with independent agent reviews"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2.6,<3"]
+dependencies = ["pydantic>=2.6,<3", "langgraph>=1.0,<2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
