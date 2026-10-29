@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "source_id": "SYN_MATCH_FORM",
+      "path": "form.txt",
+      "provenance": "synthetic",
+      "phase": "t0_input"
+    },
+    {
+      "source_id": "SYN_MATCH_REVIEW",
+      "path": "review.txt",
+      "provenance": "synthetic",
+      "phase": "t0_output"
+    }
+  ]
+}

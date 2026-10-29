@@ -1,0 +1,10 @@
+{
+  "sources": [
+    {
+      "source_id": "SYN_UNRELATED",
+      "path": "unrelated.txt",
+      "provenance": "synthetic",
+      "phase": "t0_input"
+    }
+  ]
+}

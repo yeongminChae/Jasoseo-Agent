@@ -1,0 +1,25 @@
+{
+  "sources": [
+    {
+      "source_id": "SYN_FORM_T0",
+      "path": "form_t0.txt",
+      "provenance": "synthetic",
+      "phase": "t0_input",
+      "note": "Synthetic job-application form, not from user"
+    },
+    {
+      "source_id": "SYN_REVIEW_T0",
+      "path": "review_t0.txt",
+      "provenance": "synthetic",
+      "phase": "t0_output",
+      "note": "Synthetic historical GPT response; not a real model output"
+    },
+    {
+      "source_id": "SYN_CORRECTION_POSTHOC",
+      "path": "correction_posthoc.txt",
+      "provenance": "synthetic",
+      "phase": "posthoc",
+      "note": "Withheld from T0 as future information"
+    }
+  ]
+}

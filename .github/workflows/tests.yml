@@ -1,0 +1,35 @@
+name: Python and PostgreSQL tests
+on:
+  push:
+  pull_request:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: jasoseo
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: jasoseo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jasoseo -d jasoseo"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      CAREER_AX_DATABASE_URL: postgresql://jasoseo:ci_test_only@localhost:5432/jasoseo
+      PGPASSWORD: ci_test_only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: python -m pip install -e '.[dev,postgres]'
+      - name: Apply PostgreSQL schema
+        run: psql -h localhost -U jasoseo -d jasoseo -v ON_ERROR_STOP=1 -f database/migrations/V1__research_store.sql
+      - name: Test SQLite and PostgreSQL
+        run: python -m pytest -q
+      - name: Mock PostgreSQL CLI smoke
+        run: python -m career_ax run --storage postgres --runner mock --goal '가상 문항 순서 오류를 분석하고 다음 검증 질문을 조사하라' --output-dir runs

@@ -1,0 +1,21 @@
+# Local development only. Do not use these credentials in production.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: jasoseo
+      POSTGRES_PASSWORD: local_dev_only_change_me
+      POSTGRES_DB: jasoseo
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - jasoseo_pgdata:/var/lib/postgresql/data
+      - ./database/migrations/V1__research_store.sql:/docker-entrypoint-initdb.d/01_research_store.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jasoseo -d jasoseo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  jasoseo_pgdata:

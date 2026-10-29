@@ -1,0 +1,215 @@
+{
+  "run_id": "0ba40cff97324151",
+  "goal": "가상 GPT 검토 오류 및 대책 자동 연구",
+  "status": "COMPLETE",
+  "runner": "mock",
+  "is_real_llm": false,
+  "source_snapshot": "e0a77f9dc8bc9b75724f2d482a96d33156d3091e11298aa2a9497e40a092a11a",
+  "cycles": [
+    {
+      "index": 1,
+      "question": "과거 검토에서 문항 순서와 답변 대응을 원문과 대조했는가?",
+      "based_on_finding_ids": [],
+      "collection": {
+        "evidence": [
+          {
+            "source_id": "SYN_REVIEW_T0",
+            "line": 2,
+            "quote": "과거 검토 기록: 2번 문항은 개인 강점, 3번 문항은 지원동기로 설명하며 모든 문항 순서와 답변이 일치한다고 평가했다."
+          },
+          {
+            "source_id": "SYN_REVIEW_T0",
+            "line": 3,
+            "quote": "검토의견: 전체 지원서의 문항-답변 대응이 적절하므로 바로 제출해도 된다고 적었다."
+          },
+          {
+            "source_id": "SYN_FORM_T0",
+            "line": 2,
+            "quote": "원문 질문 화면: 2번 문항 지원동기 및 지원 이유를 작성하세요."
+          },
+          {
+            "source_id": "SYN_FORM_T0",
+            "line": 3,
+            "quote": "원문 질문 화면: 3번 문항 개인 강점과 직무 관련성을 작성하세요."
+          },
+          {
+            "source_id": "SYN_FORM_T0",
+            "line": 4,
+            "quote": "지원서 답변 2번: 해당 산업에서 쌓은 경험과 지원동기를 설명했다."
+          },
+          {
+            "source_id": "SYN_FORM_T0",
+            "line": 5,
+            "quote": "지원서 답변 3번: 협업 과정에서 나타난 개인 강점을 설명했다."
+          }
+        ],
+        "missing": []
+      },
+      "analyst": {
+        "findings": [
+          {
+            "finding_id": "c1_analyst",
+            "category": "question_order_mismatch",
+            "kind": "observation",
+            "statement": "합성 원문은 2번=지원동기·3번=강점인데, 합성 검토 결과는 반대로 안내했다는 문항 순서 불일치 관찰",
+            "evidence": [
+              {
+                "source_id": "SYN_REVIEW_T0",
+                "line": 2,
+                "quote": "과거 검토 기록: 2번 문항은 개인 강점, 3번 문항은 지원동기로 설명하며 모든 문항 순서와 답변이 일치한다고 평가했다."
+              }
+            ],
+            "limits": "합성 Mock 출력이며 실제 GPT 능력 또는 사건의 진실성 검증이 아님"
+          }
+        ],
+        "unresolved": []
+      },
+      "critic": {
+        "findings": [
+          {
+            "finding_id": "c1_critic",
+            "category": "question_order_mismatch",
+            "kind": "observation",
+            "statement": "합성 검토 문장의 문항 순서가 합성 원문과 반대로 기재됐다는 독립적 관찰",
+            "evidence": [
+              {
+                "source_id": "SYN_REVIEW_T0",
+                "line": 2,
+                "quote": "과거 검토 기록: 2번 문항은 개인 강점, 3번 문항은 지원동기로 설명하며 모든 문항 순서와 답변이 일치한다고 평가했다."
+              }
+            ],
+            "limits": "합성 Mock 출력이며 실제 GPT 능력 또는 사건의 진실성 검증이 아님"
+          }
+        ],
+        "unresolved": []
+      },
+      "verification": {
+        "passed": true,
+        "errors": [],
+        "valid_finding_ids": [
+          "c1_analyst",
+          "c1_critic"
+        ],
+        "source_level": "PRIMARY_OR_SYNTHETIC"
+      },
+      "decision": {
+        "action": "CONTINUE",
+        "reason": "첫 사이클에서 문항 순서 확인 필요성이 관찰되었으므로 후속 예방 절차 질문으로 연결",
+        "next_question": "문항 순서 대조 누락을 예방하려면 어떤 질문-답변 번호 확인 절차가 필요한가?",
+        "based_on_finding_ids": [
+          "c1_analyst"
+        ]
+      },
+      "next_question": "문항 순서 대조 누락을 예방하려면 어떤 질문-답변 번호 확인 절차가 필요한가?",
+      "accepted_finding_ids": [
+        "c1_analyst",
+        "c1_critic"
+      ]
+    },
+    {
+      "index": 2,
+      "question": "문항 순서 대조 누락을 예방하려면 어떤 질문-답변 번호 확인 절차가 필요한가?",
+      "based_on_finding_ids": [
+        "c1_analyst"
+      ],
+      "collection": {
+        "evidence": [
+          {
+            "source_id": "SYN_REVIEW_T0",
+            "line": 2,
+            "quote": "과거 검토 기록: 2번 문항은 개인 강점, 3번 문항은 지원동기로 설명하며 모든 문항 순서와 답변이 일치한다고 평가했다."
+          },
+          {
+            "source_id": "SYN_FORM_T0",
+            "line": 2,
+            "quote": "원문 질문 화면: 2번 문항 지원동기 및 지원 이유를 작성하세요."
+          },
+          {
+            "source_id": "SYN_FORM_T0",
+            "line": 3,
+            "quote": "원문 질문 화면: 3번 문항 개인 강점과 직무 관련성을 작성하세요."
+          },
+          {
+            "source_id": "SYN_REVIEW_T0",
+            "line": 3,
+            "quote": "검토의견: 전체 지원서의 문항-답변 대응이 적절하므로 바로 제출해도 된다고 적었다."
+          },
+          {
+            "source_id": "SYN_FORM_T0",
+            "line": 4,
+            "quote": "지원서 답변 2번: 해당 산업에서 쌓은 경험과 지원동기를 설명했다."
+          },
+          {
+            "source_id": "SYN_FORM_T0",
+            "line": 5,
+            "quote": "지원서 답변 3번: 협업 과정에서 나타난 개인 강점을 설명했다."
+          }
+        ],
+        "missing": []
+      },
+      "analyst": {
+        "findings": [
+          {
+            "finding_id": "c2_analyst",
+            "category": "pre_submission_crosscheck",
+            "kind": "hypothesis",
+            "statement": "문항 순서 대조 누락을 막기 위해 질문-답변 번호 검증이 필요하다는 개선 가설",
+            "evidence": [
+              {
+                "source_id": "SYN_REVIEW_T0",
+                "line": 2,
+                "quote": "과거 검토 기록: 2번 문항은 개인 강점, 3번 문항은 지원동기로 설명하며 모든 문항 순서와 답변이 일치한다고 평가했다."
+              }
+            ],
+            "limits": "합성 Mock 출력이며 실제 GPT 능력 또는 사건의 진실성 검증이 아님"
+          }
+        ],
+        "unresolved": []
+      },
+      "critic": {
+        "findings": [
+          {
+            "finding_id": "c2_critic",
+            "category": "pre_submission_crosscheck",
+            "kind": "hypothesis",
+            "statement": "문항 순서 재확인만으로 모든 검토 오류가 해결되지는 않는다는 제한적 가설",
+            "evidence": [
+              {
+                "source_id": "SYN_REVIEW_T0",
+                "line": 2,
+                "quote": "과거 검토 기록: 2번 문항은 개인 강점, 3번 문항은 지원동기로 설명하며 모든 문항 순서와 답변이 일치한다고 평가했다."
+              }
+            ],
+            "limits": "합성 Mock 출력이며 실제 GPT 능력 또는 사건의 진실성 검증이 아님"
+          }
+        ],
+        "unresolved": []
+      },
+      "verification": {
+        "passed": true,
+        "errors": [],
+        "valid_finding_ids": [
+          "c2_analyst",
+          "c2_critic"
+        ],
+        "source_level": "PRIMARY_OR_SYNTHETIC"
+      },
+      "decision": {
+        "action": "COMPLETE",
+        "reason": "합성 시나리오에서 2개 질문의 근거 연결을 확인",
+        "next_question": null,
+        "based_on_finding_ids": []
+      },
+      "next_question": null,
+      "accepted_finding_ids": [
+        "c2_analyst",
+        "c2_critic"
+      ]
+    }
+  ],
+  "calls_used": 9,
+  "model_cost_usd": null,
+  "notes": [
+    "합성(Mock) 결과이며 새로운 LLM 추론/성능 증명이 아님"
+  ]
+}
