@@ -1,6 +1,6 @@
-# Career Intelligence Agent — AX Pilot v0.1
+# Jasoseo Agent — AX Pilot v0.2 (SQLite + PostgreSQL)
 
-**상태:** 실행 가능한 소규모 기술 검증(2026-10-27). Python 기반 멀티 역할 연구 루프, 엄격한 원문 인용 게이트, SQLite 체크포인트, 제한된 재실행. **기본 Mock 모드에는 AI 모델이 전혀 호출되지 않는다.**
+**상태:** 초기 AX Pilot 코드(2026-10-27)를 기반으로 PostgreSQL 저장 계층을 추가한 개발 버전. Python 기반 멀티 역할 연구 루프, 엄격한 원문 인용 게이트, SQLite 체크포인트, 제한된 재실행. **기본 Mock 모드에는 AI 모델이 전혀 호출되지 않는다.**
 
 이 프로젝트는 취업 탈락 원인을 예측하지 않습니다. 최초 검토 입력과 당시 GPT 출력 및 사후 정정을 구분하고, 문서 결함과 검토 누락에 대한 *조사 및 검증 절차*를 재현하기 위한 Pilot입니다.
 
