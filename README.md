@@ -163,3 +163,8 @@ See [PostgreSQL setup and limitations](docs/POSTGRESQL.md) for Docker Compose,
 `CAREER_AX_DATABASE_URL`, migrations, and CI instructions. The repository
 contains **synthetic fixtures only**; do not upload real applications to a
 public GitHub repository.
+
+## Submission Review MVP
+
+LangGraph 기반 Submission Review 실행 골격을 추가했습니다. 실제 Analyst/Critic 검토와
+결과 통합 정책은 TODO입니다. [실행 방법과 개발자 TODO](docs/SUBMISSION_REVIEW.md)를 참고하세요.
