@@ -34,7 +34,7 @@ python -m career_ax submission-review \
  --output-dir runs/live/missing_cause_validation
 ~~~
 
-If it succeeds, review.json/review.md will be written. Record timestamp, commit hash, request input SHA256, CLI version, configured model, successful roles, exit/error details and redacted logs. The current implementation does NOT capture a verified actual model identifier or token usage in structured output. Do not guess these. The OpenAI API runner is an unused option; do not enable it without separate approval.
+For reproducibility, add --codex-model MODEL_ID when you have checked the local CLI model access; this is optional and does not establish which model actually ran. The configured value appears as requested_model in the saved report.\n\nIf it succeeds, review.json/review.md will be written. Record timestamp, commit hash, request input SHA256, CLI version, configured model, successful roles, exit/error details and redacted logs. The current implementation does NOT capture a verified actual model identifier or token usage in structured output. Do not guess these. The OpenAI API runner is an unused option; do not enable it without separate approval.
 
 ## 3. Three separate synthetic cases
 
