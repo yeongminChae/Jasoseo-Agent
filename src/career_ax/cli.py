@@ -23,7 +23,8 @@ def parser():
     review.add_argument("--request", type=Path, required=True, help="Curated T0 JSON; no gold/prior AI/posthoc data")
     review.add_argument("--runner", choices=["stub", "codex", "openai"], default="codex")
     review.add_argument("--allow-external-model", action="store_true")
-    review.add_argument("--model", default="gpt-4.1-mini")
+    review.add_argument("--model", default="gpt-4.1-mini", help="Model for OpenAI API runner only")
+    review.add_argument("--codex-model", default=None, help="Optional explicitly selected Codex CLI model; requires availability in your account")
     review.add_argument("--timeout-seconds", type=int, default=60)
     review.add_argument("--output-dir", type=Path, default=Path("runs/submission-review"))
     ev=sub.add_parser("eval-dev",help="Run synthetic-only Mock smoke suite (NOT real AI quality Eval)")
@@ -64,7 +65,7 @@ def main(argv=None):
                 graph = build_review_graph(SubmissionStubRunner(), analyst=stub_analyst, critic=stub_critic)
             else:
                 from .runner import OpenAIRunner
-                runner = (CodexRunner(allow_external=args.allow_external_model, timeout_seconds=args.timeout_seconds)
+                runner = (CodexRunner(allow_external=args.allow_external_model, timeout_seconds=args.timeout_seconds, model=args.codex_model)
                           if args.runner == "codex" else OpenAIRunner(allow_external=args.allow_external_model,
                               model=args.model, timeout_seconds=args.timeout_seconds))
                 graph = build_review_graph(runner)
