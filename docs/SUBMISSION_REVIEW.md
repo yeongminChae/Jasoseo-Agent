@@ -74,3 +74,36 @@ Codex 비정상 종료는 원인을 추정해 재시도하지 않습니다. API 
 
 - SQLite 연구 Mock CLI: COMPLETE, 2 cycles, 9 calls. eval-dev: 3/3 통과.
 - Submission Stub JSON/Markdown 출력, pip check, git diff --check 통과.
+
+## Sprint 02 후속 검증 (기준 커밋 5750c96)
+
+상태 우선순위는 HUMAN_REVIEW 사유(인용 오류, 양쪽 실행 실패, 빈 발견 목록,
+충돌 가능성)를 먼저 확인하고, 그 사유가 없을 때 한 역할 실패를 PARTIAL_COMPLETE로
+처리합니다. 따라서 한 역할이 실패하고 다른 역할이 허위 인용을 반환하면
+HUMAN_REVIEW이며, 잘못된 인용의 Finding은 통합 결과에 포함되지 않습니다.
+양쪽 역할에 대한 타임아웃+허위 인용 회귀 테스트를 추가했습니다.
+
+추가 합성 실험은 다음 두 파일로 분리했습니다.
+
+- 입력: `fixtures/submission_review/missing_cause_validation/request.json`
+- 평가 전용 Gold: `fixtures/submission_review/missing_cause_validation/gold.json`
+
+문항은 원인·해결 방법·검증 방법과 결과를 요구합니다. 답변은 물품 전달 지연 상황과
+작업표/회의라는 해결 활동만 설명하며 원인 및 효과 검증 결과를 누락합니다.
+Gold는 이 두 예상 결함과 해석상의 한계를 담고 있으며 모델 입력으로 읽지 않습니다.
+FakeRunner 테스트로 두 역할에 request만 전달되는 것과 Gold 필드 거부를 확인했습니다.
+
+```sh
+python -m pytest
+career-ax submission-review --request fixtures/submission_review/request.json --runner stub --output-dir runs/sprint02-validation/original
+career-ax submission-review --request fixtures/submission_review/missing_cause_validation/request.json --runner stub --output-dir runs/sprint02-validation/experiment
+```
+
+검증 결과: **57 passed, 4 skipped** (PostgreSQL DSN 미설정). 두 Stub 실행 모두
+STRUCTURAL_CHECKS_ONLY, real_llm_executed=false이며 인용 구조 검사와 JSON/Markdown 생성을
+확인했습니다. 생성된 JSON은 ReviewResult 스키마로 다시 검증했습니다. git diff --check 통과.
+산출물은 runs/ 아래에 보관하며 Git에 포함하지 않습니다.
+
+이번 후속 검증에서는 실제 외부 LLM 호출이나 개인정보 전송을 하지 않았습니다.
+Stub은 결함을 탐지하는 모델이 아니므로 새 Gold 대비 검출률/정확도는 측정하지 않았습니다.
+실제 LLM의 두 누락 탐지 여부, 의미적 사실 검증, PostgreSQL 통합은 여전히 미검증입니다.

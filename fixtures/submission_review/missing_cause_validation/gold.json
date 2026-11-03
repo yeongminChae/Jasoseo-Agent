@@ -1,0 +1,29 @@
+{
+  "request_id": "synthetic-missing-cause-validation-001",
+  "evaluation_only": true,
+  "note": "합성 실험의 사람이 작성한 예상 결함. 모델 입력에 포함하지 않는다. 실제 모델 검출 결과나 성능 점수가 아니다.",
+  "expected_defects": [
+    {
+      "defect_id": "GOLD_MISSING_CAUSE",
+      "category": "missing_problem_cause",
+      "description": "지연이라는 현상만 제시하고 지연이 발생한 원인을 설명하지 않는다.",
+      "required_by_source_id": "SYN_EXPERIMENT_QUESTION",
+      "affected_source_id": "SYN_EXPERIMENT_SUBMISSION"
+    },
+    {
+      "defect_id": "GOLD_MISSING_VALIDATION",
+      "category": "missing_validation_result",
+      "description": "해결 방법은 제시하지만 효과를 확인한 검증 방법과 결과가 없다. 작업표 확인 회의는 실행 활동이며 효과 검증 결과가 아니다.",
+      "required_by_source_id": "SYN_EXPERIMENT_QUESTION",
+      "affected_source_id": "SYN_EXPERIMENT_SUBMISSION"
+    }
+  ],
+  "present_elements": [
+    "문제 상황: 물품 전달 지연",
+    "해결 방법: 공동 작업표 작성과 일일 확인 회의"
+  ],
+  "scoring_limits": [
+    "문구의 부분 인용만으로 누락을 증명할 수 없다. 답변 전체를 대조해야 한다.",
+    "문제 원인이나 검증 수치를 추측하여 보충하지 않는다."
+  ]
+}

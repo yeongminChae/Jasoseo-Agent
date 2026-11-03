@@ -187,11 +187,15 @@ def verifier_node(state: ReviewState, *, execution_mode: str) -> ReviewOutput:
     verification = verify_sources(request, analyst, critic)
     failures = {role: state[role + "_failure"] for role in ("analyst", "critic") if role + "_failure" in state}
     links = relationships(analyst, critic)
-    status = ("STRUCTURAL_CHECKS_ONLY" if execution_mode == "stub" else
-              "PARTIAL_COMPLETE" if len(failures) == 1 else
-              "HUMAN_REVIEW" if failures or not verification.passed or
-              not (analyst.findings or critic.findings) or any(x["relation"] == "potential_conflict" for x in links)
-              else "COMPLETE")
+    # Invalid evidence must not be masked by a single role's execution failure.
+    needs_human_review = (
+        not verification.passed or len(failures) == 2
+        or not (analyst.findings or critic.findings)
+        or any(x["relation"] == "potential_conflict" for x in links)
+    )
+    status = ("HUMAN_REVIEW" if needs_human_review else
+              "PARTIAL_COMPLETE" if failures else
+              "STRUCTURAL_CHECKS_ONLY" if execution_mode == "stub" else "COMPLETE")
     successful = [r for r in ("analyst", "critic") if r not in failures]
     return {"result": ReviewResult(
         request_id=request.request_id, input_sha256=request.input_sha256,

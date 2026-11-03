@@ -331,3 +331,37 @@ def test_transient_failure_recovers_within_budget(request_t0):
     runner = RecoveringRunner({r: {"findings": [finding(request_t0, r)]} for r in ("analyst", "critic")})
     result = build_review_graph(runner).invoke({"request": request_t0})["result"]
     assert result.status == "COMPLETE" and len(runner.calls) == 3
+
+
+@pytest.mark.parametrize("failed_role", ["analyst", "critic"])
+def test_invalid_citation_takes_priority_over_partial_failure(request_t0, failed_role):
+    surviving_role = "critic" if failed_role == "analyst" else "analyst"
+    runner = FakeRunner({
+        failed_role: TimeoutError(),
+        surviving_role: {"findings": [finding(request_t0, surviving_role, quote="FABRICATED")]},
+    })
+    result = build_review_graph(runner).invoke({"request": request_t0})["result"]
+    assert result.status == "HUMAN_REVIEW"
+    assert not result.verification.passed
+    assert result.failures == {failed_role: "TimeoutError"}
+    assert result.successful_roles == [surviving_role]
+    assert not result.integrated.findings
+    assert [role for role, _ in runner.calls].count(failed_role) == 2
+    assert [role for role, _ in runner.calls].count(surviving_role) == 1
+
+
+def test_experiment_request_excludes_evaluation_gold():
+    folder = FIXTURE.parent / "missing_cause_validation"
+    request = ReviewRequest.model_validate_json((folder / "request.json").read_text())
+    gold = json.loads((folder / "gold.json").read_text())
+    runner = FakeRunner({"analyst": {}, "critic": {}})
+    build_review_graph(runner).invoke({"request": request})
+    assert len(runner.calls) == 2
+    assert gold["request_id"] == request.request_id
+    for _, payload in runner.calls:
+        assert payload == request.model_dump(mode="json")
+        assert set(payload) == {"request_id", "sources"}
+        assert all(defect["defect_id"] not in json.dumps(payload) for defect in gold["expected_defects"])
+    # Evaluation data cannot accidentally be accepted as another request field.
+    with pytest.raises(ValidationError, match="Extra inputs"):
+        ReviewRequest.model_validate({**request.model_dump(), "gold": gold})
