@@ -35,7 +35,7 @@ def test_stub_graph_complete_but_not_semantic_review(request_t0):
     assert result.verification.passed
     assert result.execution_mode == "stub" and result.real_llm_executed is False
     assert result.status == "STRUCTURAL_CHECKS_ONLY"
-    assert not result.semantic_review_complete and result.integration_policy == "TODO"
+    assert not result.semantic_review_complete and result.integration_policy == "conservative_exact_match"
     assert result.analyst.findings[0].finding_id != result.critic.findings[0].finding_id
     assert result.input_sha256 == request_t0.input_sha256
 
@@ -70,7 +70,7 @@ def test_parallel_branches_use_identical_fresh_payloads_and_join_once(request_t0
     result = next(u["verifier"]["result"] for u in updates if "verifier" in u)
     assert result.analyst.unresolved == ["analyst"]
     assert result.critic.unresolved == ["critic"]
-    assert result.execution_mode == "custom" and result.real_llm_executed is None
+    assert result.execution_mode == "fake" and result.real_llm_executed is False
 
 
 @pytest.mark.parametrize("field", ["gold_labels", "golden_dataset", "previous_ai_analysis", "posthoc_correction"])
@@ -113,37 +113,25 @@ def test_input_digest_can_pair_future_baseline_and_ax(request_t0):
     assert ReviewRequest.model_validate(raw).input_sha256 != request_t0.input_sha256
 
 
-@pytest.mark.parametrize("role", ["analyst", "critic"])
-def test_unimplemented_role_raises_even_with_injected_runner(request_t0, role):
-    kwargs = {"analyst": stub_analyst, "critic": stub_critic}
-    kwargs.pop(role)
-    with pytest.raises(NotImplementedError, match=role.capitalize()):
-        build_review_graph(SubmissionStubRunner(), **kwargs).invoke({"request": request_t0})
+def test_roles_and_failure_policy(request_t0):
+    result = build_review_graph(SubmissionStubRunner()).invoke({"request": request_t0})["result"]
+    assert len(result.analyst.findings) == len(result.critic.findings) == 1
+    assert decide_failure_action(TimeoutError(), role="analyst", attempt=1) == "retry"
+    assert decide_failure_action(TimeoutError(), role="analyst", attempt=2) == "human_review"
+    assert decide_failure_action(ValueError(), role="analyst", attempt=1) == "abort"
 
 
-def test_remaining_policy_todos_are_explicit(request_t0):
-    verification = verify_sources(request_t0, Assessment(), Assessment())
-    with pytest.raises(NotImplementedError, match="Integration"):
-        reconcile_assessments(request_t0, Assessment(), Assessment(), verification)
-    with pytest.raises(NotImplementedError, match="Retry"):
-        decide_failure_action(TimeoutError(), role="analyst", attempt=1)
-
-
-def test_runner_failure_propagates_without_hidden_retry(request_t0):
+def test_runner_failure_preserved_without_retry(request_t0):
     class FailingRunner(AgentRunner):
         mode = "fake"
-
-        def __init__(self):
-            self.calls = []
-
+        def __init__(self): self.calls = []
         def run(self, role, payload, response_type):
             self.calls.append(role)
             raise AgentRuntimeError("deliberate failure")
-
     runner = FailingRunner()
-    with pytest.raises(AgentRuntimeError, match="deliberate"):
-        build_review_graph(runner, analyst=stub_analyst, critic=stub_critic).invoke({"request": request_t0})
-    assert all(runner.calls.count(role) <= 1 for role in ("analyst", "critic"))
+    result = build_review_graph(runner).invoke({"request": request_t0})["result"]
+    assert result.status == "HUMAN_REVIEW"
+    assert len(result.failures) == 2 and len(runner.calls) == 2
 
 
 @pytest.mark.parametrize("bad_ref", [
@@ -186,7 +174,7 @@ def test_cli_stub_outputs_and_unimplemented_default(tmp_path, capsys):
     assert "STRUCTURAL_CHECKS_ONLY" in (tmp_path / "stub/review.md").read_text()
     assert main(["submission-review", "--request", str(FIXTURE),
                  "--output-dir", str(tmp_path / "real")]) == 2
-    assert "NotImplementedError" in capsys.readouterr().err
+    assert "--allow-external-model required" in capsys.readouterr().err
     assert not (tmp_path / "real").exists()
 
 
@@ -202,3 +190,144 @@ def test_cli_rejects_non_synthetic_and_contaminated_input(tmp_path, request_t0):
     path.write_text(json.dumps(raw))
     assert main(args) == 2
     assert not (tmp_path / "output").exists()
+
+
+class FakeRunner(AgentRunner):
+    mode = "fake"
+    def __init__(self, outputs):
+        self.outputs, self.calls = outputs, []
+    def run(self, role, payload, response_type):
+        self.calls.append((role, deepcopy(payload)))
+        value = self.outputs[role]
+        if isinstance(value, Exception): raise value
+        return response_type.model_validate(value)
+
+
+def finding(request, role, statement="A claim", quote=None):
+    source = next(s for s in request.sources if s.purpose == "submission")
+    return {"finding_id": role + "_1", "category": "uncertain_claim", "kind": "uncertain",
+            "statement": statement, "evidence": [{"source_id": source.source_id, "line": 1,
+            "quote": quote if quote is not None else source.text.splitlines()[0]}]}
+
+
+def test_real_role_functions_have_identical_isolated_inputs(request_t0):
+    runner = FakeRunner({r: {"findings": [finding(request_t0, r)]} for r in ("analyst", "critic")})
+    result = build_review_graph(runner).invoke({"request": request_t0})["result"]
+    assert runner.calls[0][1] == runner.calls[1][1] == request_t0.model_dump(mode="json")
+    assert result.status == "COMPLETE" and result.real_llm_executed is False
+    assert result.relationships[0]["relation"] == "duplicate"
+    assert len(result.integrated.findings) == 1
+    assert not result.semantic_review_complete
+
+
+def test_disagreement_and_false_citation(request_t0):
+    runner = FakeRunner({"analyst": {"findings": [finding(request_t0, "analyst")]},
+                         "critic": {"findings": [finding(request_t0, "critic", "Opposite claim")]}})
+    result = build_review_graph(runner).invoke({"request": request_t0})["result"]
+    assert result.status == "HUMAN_REVIEW"
+    assert result.relationships[0]["relation"] == "potential_conflict"
+    runner.outputs["critic"] = {"findings": [finding(request_t0, "critic", quote="FABRICATED")]}
+    result = build_review_graph(runner).invoke({"request": request_t0})["result"]
+    assert not result.verification.passed
+    assert [f.finding_id for f in result.integrated.findings] == ["analyst_1"]
+
+
+def test_timeout_is_bounded_and_partial(request_t0):
+    runner = FakeRunner({"analyst": TimeoutError(), "critic": {"findings": [finding(request_t0, "critic")]}})
+    result = build_review_graph(runner).invoke({"request": request_t0})["result"]
+    assert result.status == "PARTIAL_COMPLETE"
+    assert [r for r, _ in runner.calls].count("analyst") == 2
+    assert result.successful_roles == ["critic"]
+
+
+def test_schema_failure_is_not_retried(request_t0):
+    runner = FakeRunner({"analyst": {"findings": [{"garbage": True}]}, "critic": {}})
+    result = build_review_graph(runner).invoke({"request": request_t0})["result"]
+    assert result.failures == {"analyst": "ValidationError"}
+    assert len(runner.calls) == 2
+
+
+def test_all_duplicate_ids_excluded(request_t0):
+    item = finding(request_t0, "analyst")
+    assessment = Assessment.model_validate({"findings": [item, item]})
+    verification = verify_sources(request_t0, assessment, Assessment())
+    assert not verification.valid_finding_ids
+    assert not reconcile_assessments(request_t0, assessment, Assessment(), verification).findings
+
+
+def test_external_consent_and_missing_auth(monkeypatch):
+    from career_ax.runner import CodexRunner, OpenAIRunner
+    for runner in (CodexRunner, OpenAIRunner):
+        with pytest.raises(AgentRuntimeError, match="allow-external"):
+            runner()
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(AgentRuntimeError, match="OPENAI_API_KEY"):
+        OpenAIRunner(allow_external=True)
+
+
+def test_openai_stateless_transport_and_json(monkeypatch, request_t0):
+    import io
+    import urllib.request
+    from career_ax.runner import OpenAIRunner
+    requests = []
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-test-token")
+    def send(request, timeout):
+        body = json.loads(request.data)
+        requests.append(body)
+        return io.BytesIO(json.dumps({"choices": [{"message": {"content": '{"findings": [], "unresolved": ["uncertain"]}'}}]}).encode())
+    monkeypatch.setattr(urllib.request, "urlopen", send)
+    runner = OpenAIRunner(allow_external=True)
+    for role in ("analyst", "critic"):
+        runner.run(role, request_t0.model_dump(mode="json"), Assessment)
+    assert len(requests) == 2
+    assert requests[0]["messages"][1] == requests[1]["messages"][1]
+    assert all(len(r["messages"]) == 2 for r in requests)
+    assert requests[0]["messages"][0] != requests[1]["messages"][0]
+
+
+@pytest.mark.parametrize("code,retry", [(429, True), (503, True), (401, False)])
+def test_openai_http_classification(monkeypatch, request_t0, code, retry):
+    import urllib.request
+    import urllib.error
+    from career_ax.runner import OpenAIRunner, TransientModelError
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-test-token")
+    def send(*args, **kwargs):
+        raise urllib.error.HTTPError("https://api.openai.com", code, "error", {}, None)
+    monkeypatch.setattr(urllib.request, "urlopen", send)
+    with pytest.raises(AgentRuntimeError) as caught:
+        OpenAIRunner(allow_external=True).run("analyst", request_t0.model_dump(mode="json"), Assessment)
+    assert isinstance(caught.value, TransientModelError) == retry
+
+
+def test_openai_invalid_json_rejected(monkeypatch, request_t0):
+    import io
+    import urllib.request
+    from career_ax.runner import OpenAIRunner
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-test-token")
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: io.BytesIO(
+        json.dumps({"choices": [{"message": {"content": "not JSON"}}]}).encode()))
+    with pytest.raises(ValidationError):
+        OpenAIRunner(allow_external=True).run("critic", request_t0.model_dump(mode="json"), Assessment)
+
+
+def test_distinct_findings_and_no_citation_retry(request_t0):
+    a, c = finding(request_t0, "analyst"), finding(request_t0, "critic", quote="invented")
+    c["category"] = "omission"
+    runner = FakeRunner({"analyst": {"findings": [a]}, "critic": {"findings": [c]}})
+    result = build_review_graph(runner).invoke({"request": request_t0})["result"]
+    assert len(runner.calls) == 2
+    assert {x["relation"] for x in result.relationships} == {"distinct"}
+    assert result.status == "HUMAN_REVIEW"
+
+
+def test_transient_failure_recovers_within_budget(request_t0):
+    from career_ax.runner import TransientModelError
+    class RecoveringRunner(FakeRunner):
+        def run(self, role, payload, response_type):
+            if role == "analyst" and not any(r == role for r, _ in self.calls):
+                self.calls.append((role, deepcopy(payload)))
+                raise TransientModelError("temporary")
+            return super().run(role, payload, response_type)
+    runner = RecoveringRunner({r: {"findings": [finding(request_t0, r)]} for r in ("analyst", "critic")})
+    result = build_review_graph(runner).invoke({"request": request_t0})["result"]
+    assert result.status == "COMPLETE" and len(runner.calls) == 3

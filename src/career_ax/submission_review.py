@@ -1,4 +1,4 @@
-"""Submission Review skeleton. Stub execution is plumbing validation, not AI review."""
+"""Independent T0 reviews with bounded calls and conservative citation integration."""
 from __future__ import annotations
 
 import hashlib
@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import ConfigDict, Field, model_validator
 
 from .models import Assessment, EvidenceRef, Finding, StrictModel, Verification
-from .runner import AgentRunner
+from .runner import AgentRunner, TransientModelError
 
 
 class T0Source(StrictModel):
@@ -49,14 +49,18 @@ class ReviewRequest(StrictModel):
 class ReviewResult(StrictModel):
     request_id: str
     input_sha256: str
-    execution_mode: Literal["stub", "custom"]
-    real_llm_executed: bool | None  # None = unknown for injected developer code.
-    status: Literal["STRUCTURAL_CHECKS_ONLY"] = "STRUCTURAL_CHECKS_ONLY"
+    execution_mode: Literal["stub", "fake", "custom", "codex", "openai"]
+    real_llm_executed: bool | None
+    status: Literal["STRUCTURAL_CHECKS_ONLY", "COMPLETE", "PARTIAL_COMPLETE", "HUMAN_REVIEW"] = "STRUCTURAL_CHECKS_ONLY"
     semantic_review_complete: Literal[False] = False
-    integration_policy: Literal["TODO"] = "TODO"
+    integration_policy: str = "conservative_exact_match"
     analyst: Assessment
     critic: Assessment
     verification: Verification
+    integrated: Assessment = Field(default_factory=Assessment)
+    relationships: list[dict[str, str]] = Field(default_factory=list)
+    failures: dict[str, str] = Field(default_factory=dict)
+    successful_roles: list[str] = Field(default_factory=list)
 
 
 class ReviewInput(TypedDict):
@@ -79,46 +83,56 @@ class ReviewState(ReviewInput, total=False):
     analyst: Assessment
     critic: Assessment
     result: ReviewResult
+    analyst_failure: str
+    critic_failure: str
 
 
 Reviewer = Callable[[ReviewRequest, AgentRunner], Assessment]
 
 
 def run_analyst(request: ReviewRequest, runner: AgentRunner) -> Assessment:
-    """TODO(developer): analyst prompt and runner.run(..., Assessment) implementation.
-
-    Use only request's original sources, treat them as untrusted data, and use
-    role-prefixed finding IDs. Never read graph state, prior conclusions or gold.
-    """
-    raise NotImplementedError("Submission Review Analyst prompt/execution is not implemented")
+    return Assessment.model_validate(runner.run("analyst", request.model_dump(mode="json"), Assessment).model_dump())
 
 
 def run_critic(request: ReviewRequest, runner: AgentRunner) -> Assessment:
-    """TODO(developer): independent critic prompt and runner invocation, same T0 input.
-
-    No Analyst result, shared conversation memory, or previous-run retrieval.
-    """
-    raise NotImplementedError("Submission Review Critic prompt/execution is not implemented")
+    return Assessment.model_validate(runner.run("critic", request.model_dump(mode="json"), Assessment).model_dump())
 
 
-def reconcile_assessments(
-    request: ReviewRequest, analyst: Assessment, critic: Assessment, verification: Verification,
-) -> Assessment:
-    """TODO(developer): integrate results and resolve disagreement after verification.
+def reconcile_assessments(request, analyst, critic, verification) -> Assessment:
+    valid = set(verification.valid_finding_ids)
+    findings = []
+    seen = set()
+    for finding in analyst.findings + critic.findings:
+        key = (finding.category, finding.kind, finding.statement, tuple((e.source_id, e.line, e.quote) for e in finding.evidence))
+        if finding.finding_id in valid and key not in seen:
+            findings.append(finding.model_copy(update={"limits": finding.limits + "; Citation location checked only; semantic facts unverified."}))
+            seen.add(key)
+    return Assessment(findings=findings, unresolved=list(dict.fromkeys(
+        analyst.unresolved + critic.unresolved + verification.errors + [
+            "Semantic facts remain unverified; agreement does not prove correctness or hiring outcomes.",
+            "Empty findings do not establish application safety."])))
 
-    Not wired into MVP; raw assessments stay separate and no finding is promoted.
-    """
-    raise NotImplementedError("Integration/conflict policy is not implemented")
+
+def decide_failure_action(error, *, role, attempt):
+    if isinstance(error, (TimeoutError, TransientModelError)) and attempt < 2:
+        return "retry"
+    if isinstance(error, ValueError):
+        return "abort"
+    return "human_review"
 
 
-def decide_failure_action(
-    error: Exception, *, role: Literal["analyst", "critic", "verifier"], attempt: int,
-) -> Literal["retry", "abort", "human_review"]:
-    """TODO(developer): bounded retry/abort policy; MVP simply propagates errors.
-
-    This extension point is not wired into the graph and makes no retry claim.
-    """
-    raise NotImplementedError("Retry/abort decision policy is not implemented")
+def relationships(analyst, critic):
+    result = []
+    for a in analyst.findings:
+        for c in critic.findings:
+            same_evidence = a.evidence == c.evidence
+            if a.category == c.category and same_evidence:
+                relation = "duplicate" if (a.statement, a.kind) == (c.statement, c.kind) else "potential_conflict"
+                result.append({"analyst": a.finding_id, "critic": c.finding_id, "relation": relation})
+    linked = {x[k] for x in result for k in ("analyst", "critic")}
+    result.extend({"finding_id": f.finding_id, "relation": "distinct"}
+                  for f in analyst.findings + critic.findings if f.finding_id not in linked)
+    return result
 
 
 def _isolated_request(state: ReviewInput) -> ReviewRequest:
@@ -140,22 +154,22 @@ def critic_node(state: ReviewInput, *, runner: AgentRunner, review: Reviewer = r
 def verify_sources(request: ReviewRequest, analyst: Assessment, critic: Assessment) -> Verification:
     """Check citation location and ID structure only; no semantic or merge policy."""
     sources = {s.source_id: s for s in request.sources}
-    seen: set[str] = set()
+    from collections import Counter
+    counts = Counter(f.finding_id for f in analyst.findings + critic.findings)
     valid_ids: list[str] = []
     errors: list[str] = []
     levels: set[str] = set()
     for role, assessment in (("analyst", analyst), ("critic", critic)):
         for finding in assessment.findings:
             local_errors = []
-            if finding.finding_id in seen:
+            if counts[finding.finding_id] > 1:
                 local_errors.append(f"Duplicate finding ID: {finding.finding_id}")
-            seen.add(finding.finding_id)
             if not finding.evidence:
                 local_errors.append(f"{role}:{finding.finding_id} missing citation")
             for ref in finding.evidence:
                 source = sources.get(ref.source_id)
                 lines = source.text.splitlines() if source else []
-                if not (1 <= ref.line <= len(lines) and ref.quote in lines[ref.line - 1]):
+                if not (1 <= ref.line <= len(lines) and ref.quote.strip() and ref.quote in lines[ref.line - 1]):
                     local_errors.append(f"{role}:{finding.finding_id} invalid citation")
                 elif source:
                     levels.add(source.provenance)
@@ -167,13 +181,25 @@ def verify_sources(request: ReviewRequest, analyst: Assessment, critic: Assessme
     return Verification(passed=not errors, errors=errors, valid_finding_ids=valid_ids, source_level=level)
 
 
-def verifier_node(state: ReviewState, *, execution_mode: Literal["stub", "custom"]) -> ReviewOutput:
+def verifier_node(state: ReviewState, *, execution_mode: str) -> ReviewOutput:
     request = _isolated_request(state)
     analyst, critic = state["analyst"], state["critic"]
+    verification = verify_sources(request, analyst, critic)
+    failures = {role: state[role + "_failure"] for role in ("analyst", "critic") if role + "_failure" in state}
+    links = relationships(analyst, critic)
+    status = ("STRUCTURAL_CHECKS_ONLY" if execution_mode == "stub" else
+              "PARTIAL_COMPLETE" if len(failures) == 1 else
+              "HUMAN_REVIEW" if failures or not verification.passed or
+              not (analyst.findings or critic.findings) or any(x["relation"] == "potential_conflict" for x in links)
+              else "COMPLETE")
+    successful = [r for r in ("analyst", "critic") if r not in failures]
     return {"result": ReviewResult(
         request_id=request.request_id, input_sha256=request.input_sha256,
-        execution_mode=execution_mode, real_llm_executed=False if execution_mode == "stub" else None,
-        analyst=analyst, critic=critic, verification=verify_sources(request, analyst, critic),
+        execution_mode=execution_mode,
+        real_llm_executed=bool(successful) if execution_mode in {"codex", "openai"} else False if execution_mode in {"stub", "fake"} else None,
+        analyst=analyst, critic=critic, verification=verification,
+        integrated=reconcile_assessments(request, analyst, critic, verification),
+        relationships=links, failures=failures, successful_roles=successful, status=status,
     )}
 
 
@@ -182,14 +208,25 @@ def build_review_graph(
 ):
     """Compile independent fan-out + barrier. No checkpointer or research store."""
     mode = ("stub" if type(runner) is SubmissionStubRunner
-            and analyst is stub_analyst and critic is stub_critic else "custom")
+            and analyst is stub_analyst and critic is stub_critic else runner.mode if runner.mode in {"codex", "openai", "fake"} else "custom")
     graph = StateGraph(ReviewState, input_schema=ReviewInput, output_schema=ReviewOutput)
 
+    def execute(state, role, reviewer):
+        for attempt in range(1, 3):
+            try:
+                result = reviewer(_isolated_request(state), runner)
+                return {role: Assessment.model_validate(result.model_dump())}
+            except Exception as exc:
+                if decide_failure_action(exc, role=role, attempt=attempt) == "retry":
+                    continue
+                return {role: Assessment(unresolved=[f"{role} failed: {type(exc).__name__}"]),
+                        role + "_failure": type(exc).__name__}
+
     def analyze(state: ReviewInput):
-        return analyst_node(state, runner=runner, review=analyst)
+        return execute(state, "analyst", analyst)
 
     def critique(state: ReviewInput):
-        return critic_node(state, runner=runner, review=critic)
+        return execute(state, "critic", critic)
 
     def verify(state: ReviewState):
         return verifier_node(state, execution_mode=mode)
@@ -222,7 +259,7 @@ class SubmissionStubRunner(AgentRunner):
             statement="합성 Stub: 입력과 인용 연결만 확인; 실제 내용 검토 미구현",
             evidence=[EvidenceRef(source_id=source.source_id, line=line, quote=text[:300])],
             limits="LLM 성능 또는 자기소개서 품질 평가가 아님",
-        )], unresolved=["실제 역할별 검토 및 통합 정책 TODO"])
+        )], unresolved=["Stub does not perform semantic review"])
 
 
 def stub_analyst(request: ReviewRequest, runner: AgentRunner) -> Assessment:
@@ -236,15 +273,21 @@ def stub_critic(request: ReviewRequest, runner: AgentRunner) -> Assessment:
 def markdown_review(result: ReviewResult) -> str:
     lines = ["# Submission Review MVP", "", f"- Request: {result.request_id}",
              f"- Input SHA256: {result.input_sha256}", f"- Mode: {result.execution_mode}",
-             "- Status: STRUCTURAL_CHECKS_ONLY (semantic review incomplete)",
-             "- Integration/conflict policy: TODO",
+             f"- Status: {result.status} (semantic facts unverified)",
+             f"- Integration/conflict policy: {result.integration_policy}",
+             f"- Real LLM executed: {result.real_llm_executed}",
+             f"- Failures: {result.failures}",
+             f"- Relationships: {result.relationships}",
              f"- Structural checks passed: {result.verification.passed}",
-             "", "합성 Stub은 실행 골격 검증용이며 실제 LLM 성능을 나타내지 않습니다."]
+             "", "인용 일치는 사실 검증이 아닙니다. AI 합의는 정답이나 채용 결과를 증명하지 않습니다."]
     for role, assessment in (("Analyst", result.analyst), ("Critic", result.critic)):
         lines.extend(["", f"## {role}"])
         for finding in assessment.findings:
             lines.append(f"- [{finding.kind}] {finding.statement}")
             lines.extend(f"  - {e.source_id}:{e.line}: {e.quote}" for e in finding.evidence)
         lines.extend(f"- Unresolved: {item}" for item in assessment.unresolved)
+    lines.extend(["", "## Integrated (citation checked; semantic facts unverified)"])
+    lines.extend(f"- [{f.finding_id}] {f.statement} — {f.limits}" for f in result.integrated.findings)
+    lines.extend(f"- Unresolved: {item}" for item in result.integrated.unresolved)
     lines.extend(["", "## Structural errors", *[f"- {e}" for e in result.verification.errors]])
     return "\n".join(lines) + "\n"

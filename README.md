@@ -52,7 +52,7 @@ career-ax resume --run-id <run_id> --runner mock --max-calls 20
 
 ### 실제 Codex CLI 실행 (로컬에서만, 명시적 승인)
 
-현재 배포 환경에는 Codex CLI가 없어 실제 모델 호출은 검증하지 못했습니다. 설치 후 인증된 개인 개발 환경에서 다음처럼 실행할 수 있도록 어댑터를 구현했습니다.
+현재 Cloud에서 Codex CLI는 존재하지만 중첩 실행이 읽기 전용 파일시스템 오류로 실패하여 실제 모델 호출은 검증하지 못했습니다. 설치 후 인증된 개인 개발 환경에서 다음처럼 실행할 수 있도록 어댑터를 구현했습니다.
 
 ```bash
 codex login
@@ -166,5 +166,7 @@ public GitHub repository.
 
 ## Submission Review MVP
 
-LangGraph 기반 Submission Review 실행 골격을 추가했습니다. 실제 Analyst/Critic 검토와
-결과 통합 정책은 TODO입니다. [실행 방법과 개발자 TODO](docs/SUBMISSION_REVIEW.md)를 참고하세요.
+Sprint 02에서는 동일 T0 원본의 독립 Analyst/Critic 요청, 인용 검사, 보수적 통합과 유한 재시도를 구현했습니다.
+`submission-review --runner codex|openai --allow-external-model`로 실제 모델을 선택합니다.
+인증/네트워크가 필요하며 현재 Cloud의 실제 모델 응답 성공은 미검증입니다.
+`--runner stub`과 Fake 테스트는 모델을 호출하지 않습니다. [실행 방법과 검증 한계](docs/SUBMISSION_REVIEW.md)를 참고하세요.

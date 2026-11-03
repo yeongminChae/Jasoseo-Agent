@@ -19,9 +19,12 @@ def parser():
     p=argparse.ArgumentParser(prog="career-ax", description="Evidence-gated autonomous research AX Pilot")
     sub=p.add_subparsers(dest="command",required=True)
     sub.add_parser("doctor",help="Check local environment; no external calls")
-    review = sub.add_parser("submission-review", help="Submission Review skeleton; synthetic Stub only")
+    review = sub.add_parser("submission-review", help="Independent Submission Review; explicit model consent required")
     review.add_argument("--request", type=Path, required=True, help="Curated T0 JSON; no gold/prior AI/posthoc data")
-    review.add_argument("--runner", choices=["stub", "unimplemented"], default="unimplemented")
+    review.add_argument("--runner", choices=["stub", "codex", "openai"], default="codex")
+    review.add_argument("--allow-external-model", action="store_true")
+    review.add_argument("--model", default="gpt-4.1-mini")
+    review.add_argument("--timeout-seconds", type=int, default=60)
     review.add_argument("--output-dir", type=Path, default=Path("runs/submission-review"))
     ev=sub.add_parser("eval-dev",help="Run synthetic-only Mock smoke suite (NOT real AI quality Eval)")
     ev.add_argument("--output",type=Path,default=Path("runs/mock_smoke.json"))
@@ -53,11 +56,19 @@ def main(argv=None):
         )
         try:
             request = ReviewRequest.model_validate_json(args.request.read_text(encoding="utf-8"))
-            if args.runner != "stub":
-                raise NotImplementedError("Analyst/Critic execution TODO; use --runner stub for synthetic wiring checks")
-            result = build_review_graph(
-                SubmissionStubRunner(), analyst=stub_analyst, critic=stub_critic,
-            ).invoke({"request": request})["result"]
+            if args.timeout_seconds <= 0:
+                raise ValueError("timeout must be positive")
+            if args.runner == "stub":
+                if any(s.provenance != "synthetic" for s in request.sources):
+                    raise ValueError("Stub accepts synthetic sources only")
+                graph = build_review_graph(SubmissionStubRunner(), analyst=stub_analyst, critic=stub_critic)
+            else:
+                from .runner import OpenAIRunner
+                runner = (CodexRunner(allow_external=args.allow_external_model, timeout_seconds=args.timeout_seconds)
+                          if args.runner == "codex" else OpenAIRunner(allow_external=args.allow_external_model,
+                              model=args.model, timeout_seconds=args.timeout_seconds))
+                graph = build_review_graph(runner)
+            result = graph.invoke({"request": request})["result"]
             args.output_dir.mkdir(parents=True, exist_ok=True)
             # Fixed filenames: user-supplied request_id never becomes a path.
             jsonfile, mdfile = args.output_dir / "review.json", args.output_dir / "review.md"
@@ -66,7 +77,7 @@ def main(argv=None):
             print(json.dumps({"status": result.status, "real_llm_executed": result.real_llm_executed,
                               "structural_checks_passed": result.verification.passed,
                               "report": str(jsonfile), "markdown_report": str(mdfile)}, ensure_ascii=False, indent=2))
-            return 0 if result.verification.passed else 2
+            return 0 if result.status in {"COMPLETE", "STRUCTURAL_CHECKS_ONLY"} else 2
         except (OSError, ValueError, RuntimeError) as exc:
             print(f"ERROR [{type(exc).__name__}]: {exc}", file=sys.stderr)
             return 2
