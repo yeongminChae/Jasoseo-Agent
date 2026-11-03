@@ -1,0 +1,15 @@
+{
+  "request_id": "synthetic-complete-response-001",
+  "evaluation_only": true,
+  "note": "가상 설정에서 명시된 질문의 필수 항목만 대상으로 한 최소 Gold. 결함 0개는 실제 무결함 보증이 아니다.",
+  "expected_defects": [],
+  "present_elements": [
+    "문제 원인",
+    "담당자·시각 공유 조치",
+    "전후 2주 집계 방법",
+    "지연 건수 6건에서 1건으로 감소"
+  ],
+  "scoring_limits": [
+    "수치의 외부 진실성은 평가하지 않는다. 가상 설정의 내용만 비교한다."
+  ]
+}
