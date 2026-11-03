@@ -89,11 +89,14 @@ SYSTEM_ROLES = {
 class CodexRunner(AgentRunner):
     """Independent `codex exec` per role. Requires explicit approval to send data to a model."""
     mode = "codex"
-    def __init__(self, *, allow_external: bool = False, timeout_seconds: int = 180):
+    def __init__(self, *, allow_external: bool = False, timeout_seconds: int = 180, model: str | None = None):
         if not allow_external:
             raise AgentRuntimeError("--allow-external-model required: input excerpts may be sent outside your PC")
         if not shutil.which("codex"):
             raise AgentRuntimeError("Codex CLI not found in PATH; install it and run codex login locally")
+        if model is not None and not model.strip():
+            raise ValueError("Codex model must not be blank")
+        self.model = model
         self.timeout_seconds = timeout_seconds
 
     def run(self, role: str, payload: dict[str, Any], response_type: type[BaseModel]) -> BaseModel:
@@ -106,8 +109,10 @@ class CodexRunner(AgentRunner):
             schema_path = folder / "schema.json"
             output_path = folder / "answer.json"
             schema_path.write_text(json.dumps(response_type.model_json_schema(), ensure_ascii=False), encoding="utf-8")
-            cmd = ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check",
-                   "--output-schema", str(schema_path), "--output-last-message", str(output_path), "-"]
+            cmd = ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check"]
+            if self.model:
+                cmd.extend(["--model", self.model])
+            cmd.extend(["--output-schema", str(schema_path), "--output-last-message", str(output_path), "-"])
             try:
                 proc = subprocess.run(cmd, input=json.dumps(data, ensure_ascii=False), text=True,
                                       cwd=folder, capture_output=True, timeout=self.timeout_seconds, check=False)
