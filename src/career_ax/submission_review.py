@@ -51,6 +51,7 @@ class ReviewResult(StrictModel):
     input_sha256: str
     execution_mode: Literal["stub", "fake", "custom", "codex", "openai"]
     real_llm_executed: bool | None
+    requested_model: str | None = None  # Configured, NOT confirmed as the actual executed model
     status: Literal["STRUCTURAL_CHECKS_ONLY", "COMPLETE", "PARTIAL_COMPLETE", "HUMAN_REVIEW"] = "STRUCTURAL_CHECKS_ONLY"
     semantic_review_complete: Literal[False] = False
     integration_policy: str = "conservative_exact_match"
@@ -181,7 +182,7 @@ def verify_sources(request: ReviewRequest, analyst: Assessment, critic: Assessme
     return Verification(passed=not errors, errors=errors, valid_finding_ids=valid_ids, source_level=level)
 
 
-def verifier_node(state: ReviewState, *, execution_mode: str) -> ReviewOutput:
+def verifier_node(state: ReviewState, *, execution_mode: str, requested_model: str | None = None) -> ReviewOutput:
     request = _isolated_request(state)
     analyst, critic = state["analyst"], state["critic"]
     verification = verify_sources(request, analyst, critic)
@@ -199,7 +200,7 @@ def verifier_node(state: ReviewState, *, execution_mode: str) -> ReviewOutput:
     successful = [r for r in ("analyst", "critic") if r not in failures]
     return {"result": ReviewResult(
         request_id=request.request_id, input_sha256=request.input_sha256,
-        execution_mode=execution_mode,
+        execution_mode=execution_mode, requested_model=requested_model,
         real_llm_executed=bool(successful) if execution_mode in {"codex", "openai"} else False if execution_mode in {"stub", "fake"} else None,
         analyst=analyst, critic=critic, verification=verification,
         integrated=reconcile_assessments(request, analyst, critic, verification),
@@ -233,7 +234,7 @@ def build_review_graph(
         return execute(state, "critic", critic)
 
     def verify(state: ReviewState):
-        return verifier_node(state, execution_mode=mode)
+        return verifier_node(state, execution_mode=mode, requested_model=getattr(runner, "model", None))
 
     graph.add_node("analyst", analyze, input_schema=ReviewInput)
     graph.add_node("critic", critique, input_schema=ReviewInput)
@@ -280,6 +281,7 @@ def markdown_review(result: ReviewResult) -> str:
              f"- Status: {result.status} (semantic facts unverified)",
              f"- Integration/conflict policy: {result.integration_policy}",
              f"- Real LLM executed: {result.real_llm_executed}",
+             f"- Requested model (not independently verified): {result.requested_model}",
              f"- Failures: {result.failures}",
              f"- Relationships: {result.relationships}",
              f"- Structural checks passed: {result.verification.passed}",
