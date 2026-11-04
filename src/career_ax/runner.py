@@ -86,6 +86,32 @@ SYSTEM_ROLES = {
     "lead_next": "You are a research lead. Propose a meaningful question linked to accepted prior finding IDs, or stop. Never loop without progress.",
 }
 
+def _codex_strict_output_schema(response_type: type[BaseModel]) -> dict[str, Any]:
+    """Adapt Pydantic JSON Schema to Codex strict Structured Outputs.
+
+    Every object's properties must be required, including nested $defs;
+    Pydantic defaults still apply to Python-side validation after generation.
+    This does not loosen or bypass response_type.model_validate_json().
+    """
+    schema = response_type.model_json_schema()
+
+    def normalize(value: Any) -> None:
+        if isinstance(value, list):
+            for item in value:
+                normalize(item)
+        elif isinstance(value, dict):
+            value.pop("default", None)
+            properties = value.get("properties")
+            if isinstance(properties, dict):
+                value["additionalProperties"] = False
+                value["required"] = list(properties)
+            for nested in value.values():
+                normalize(nested)
+
+    normalize(schema)
+    return schema
+
+
 class CodexRunner(AgentRunner):
     """Independent `codex exec` per role. Requires explicit approval to send data to a model."""
     mode = "codex"
@@ -108,7 +134,7 @@ class CodexRunner(AgentRunner):
             folder = Path(td)
             schema_path = folder / "schema.json"
             output_path = folder / "answer.json"
-            schema_path.write_text(json.dumps(response_type.model_json_schema(), ensure_ascii=False), encoding="utf-8")
+            schema_path.write_text(json.dumps(_codex_strict_output_schema(response_type), ensure_ascii=False), encoding="utf-8")
             cmd = ["codex", "exec", "--sandbox", "read-only", "--skip-git-repo-check"]
             if self.model:
                 cmd.extend(["--model", self.model])
