@@ -53,7 +53,7 @@ def prepare(review: dict) -> dict:
     return {
         "request_id": review["request_id"],
         "input_sha256": review["input_sha256"],
-        "notes": "Human review required: match requires a justified Gold defect ID, not keyword similarity.",
+        "notes": "Human review required. Verdicts: match, additional_valid (defect), false_positive (unsupported defect claim), valid_non_defect (accurate coverage or caveat), out_of_scope (inapplicable context). Gold IDs only for match.",
         "judgments": [
             {"role": role, "finding_id": finding_id, "verdict": None, "gold_defect_id": None, "reason": ""}
             for role, finding_id in _findings(review)
@@ -83,7 +83,7 @@ def evaluate(review: dict, request: dict, gold: dict, adjudication: dict) -> dic
             raise EvaluationError(f"Unknown or duplicate adjudication: {key}")
         verdict = item.get("verdict")
         defect = item.get("gold_defect_id")
-        if verdict not in {"match", "additional_valid", "false_positive"}:
+        if verdict not in {"match", "additional_valid", "false_positive", "valid_non_defect", "out_of_scope"}:
             raise EvaluationError(f"Unjudged/invalid verdict: {key}")
         if verdict == "match" and defect not in gold_set:
             raise EvaluationError(f"Missing/unknown matched Gold ID: {key}")
@@ -98,8 +98,11 @@ def evaluate(review: dict, request: dict, gold: dict, adjudication: dict) -> dic
     def metrics(roles: set[str]) -> dict:
         chosen = [v for (role, _), v in judged.items() if role in roles]
         matched = sorted({x["gold_defect_id"] for x in chosen if x["verdict"] == "match"})
-        valid_count = sum(x["verdict"] in {"match", "additional_valid"} for x in chosen)
+        valid_defect_findings = sum(x["verdict"] in {"match", "additional_valid"} for x in chosen)
         false_positives = sum(x["verdict"] == "false_positive" for x in chosen)
+        defect_finding_count = valid_defect_findings + false_positives
+        valid_non_defects = sum(x["verdict"] == "valid_non_defect" for x in chosen)
+        out_of_scope = sum(x["verdict"] == "out_of_scope" for x in chosen)
         return {
             "gold_found": matched,
             "gold_missed": sorted(gold_set - set(matched)),
@@ -107,8 +110,11 @@ def evaluate(review: dict, request: dict, gold: dict, adjudication: dict) -> dic
             "fn_gold": len(gold_set - set(matched)),
             "false_positive_findings": false_positives,
             "additional_valid_findings": sum(x["verdict"] == "additional_valid" for x in chosen),
+            "valid_non_defect_findings": valid_non_defects,
+            "out_of_scope_findings": out_of_scope,
             "gold_recall": round(len(matched) / len(gold_set), 4) if gold_set else None,
-            "finding_precision": round(valid_count / len(chosen), 4) if chosen else None,
+            "finding_precision": round(valid_defect_findings / defect_finding_count, 4) if defect_finding_count else None,
+            "defect_finding_count": defect_finding_count,
             "finding_count": len(chosen),
         }
 
@@ -126,7 +132,8 @@ def evaluate(review: dict, request: dict, gold: dict, adjudication: dict) -> dic
         "limits": [
             "A small synthetic sample is not a general accuracy estimate or hiring outcome evidence.",
             "Gold completeness and correctness depend on human review.",
-            "Finding precision uses human-judged validity; Gold recall uses unique matched Gold defects.",
+            "Defect-finding precision includes only matched/additional-valid defect findings and false-positive defect claims, excluding valid non-defect observations and out-of-scope statements.",
+            "A null precision means no defect claim was adjudicated, not a perfect score.",
             "Analyst-only is a role-specific baseline, not a separately designed single-agent system.",
         ],
     }
