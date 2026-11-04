@@ -99,3 +99,67 @@ def test_three_gold_fixtures_are_isolated():
         assert request.request_id == gold["request_id"]
         assert "gold" not in request.model_dump()
         assert all(s.provenance == "synthetic" and s.phase == "t0_input" for s in request.sources)
+
+
+def test_clean_case_with_valid_observations_and_out_of_scope_has_no_defect_precision():
+    request, gold, review, judgments = case()
+    gold["expected_defects"] = []
+    review["analyst"]["findings"] = [
+        {"finding_id": "a_coverage", "statement": "문항을 충족함"},
+        {"finding_id": "a_caveat", "statement": "인과관계는 검증되지 않음"},
+    ]
+    review["critic"]["findings"] = [
+        {"finding_id": "c_coverage", "statement": "요구 조건 충족"},
+        {"finding_id": "c_hypothesis", "statement": "다른 요인 가능성"},
+        {"finding_id": "c_scope", "statement": "가상 사례의 진위가 불명확"},
+    ]
+    judgments["judgments"] = [
+        {"role": "analyst", "finding_id": "a_coverage", "verdict": "valid_non_defect",
+         "gold_defect_id": None, "reason": "질문 항목이 모두 제시됨"},
+        {"role": "analyst", "finding_id": "a_caveat", "verdict": "valid_non_defect",
+         "gold_defect_id": None, "reason": "수치 감소만으로 인과관계 증명 불가"},
+        {"role": "critic", "finding_id": "c_coverage", "verdict": "valid_non_defect",
+         "gold_defect_id": None, "reason": "질문 항목 충족"},
+        {"role": "critic", "finding_id": "c_hypothesis", "verdict": "valid_non_defect",
+         "gold_defect_id": None, "reason": "사실로 단정하지 않은 대안 가설"},
+        {"role": "critic", "finding_id": "c_scope", "verdict": "out_of_scope",
+         "gold_defect_id": None, "reason": "입력은 명시적으로 가상 평가 사례"},
+    ]
+    out = evaluate(review, request, gold, judgments)
+    assert out["combined"]["gold_recall"] is None
+    assert out["combined"]["finding_precision"] is None
+    assert out["combined"]["false_positive_findings"] == 0
+    assert out["combined"]["valid_non_defect_findings"] == 4
+    assert out["combined"]["out_of_scope_findings"] == 1
+    assert out["combined"]["defect_finding_count"] == 0
+    assert out["combined"]["finding_count"] == 5
+
+
+def test_valid_non_defect_is_excluded_from_defect_precision_denominator():
+    request, gold, review, judgments = case()
+    review["critic"]["findings"].append({"finding_id": "critic_note", "statement": "정상 항목 관찰"})
+    judgments["judgments"].append({
+        "role": "critic", "finding_id": "critic_note", "verdict": "valid_non_defect",
+        "gold_defect_id": None, "reason": "결함 아님"
+    })
+    out = evaluate(review, request, gold, judgments)
+    assert out["combined"]["finding_precision"] == 1.0
+    assert out["combined"]["finding_count"] == 3
+    assert out["combined"]["defect_finding_count"] == 2
+
+
+def test_non_match_cannot_claim_gold_id():
+    request, gold, review, judgments = case()
+    judgments["judgments"][0]["verdict"] = "valid_non_defect"
+    with pytest.raises(EvaluationError, match="must not reference Gold"):
+        evaluate(review, request, gold, judgments)
+
+
+def test_out_of_scope_not_falsely_counted_as_false_positive():
+    request, gold, review, judgments = case()
+    judgments["judgments"][0].update(verdict="out_of_scope", gold_defect_id=None,
+                                    reason="A synthetic-only context issue")
+    out = evaluate(review, request, gold, judgments)
+    assert out["combined"]["out_of_scope_findings"] == 1
+    assert out["combined"]["false_positive_findings"] == 0
+    assert out["combined"]["fn_gold"] == 1
