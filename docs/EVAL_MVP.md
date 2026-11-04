@@ -60,7 +60,9 @@ Manually annotate **every** Analyst/Critic finding in the generated JSON:
 
 - match: valid Gold defect, set gold_defect_id to one existing Gold ID and write a concrete reason.
 - additional_valid: valid but not preset in Gold; set gold_defect_id to null and explain.
-- false_positive: invalid/unsubstantiated; set gold_defect_id to null and explain.
+- false_positive: unsupported defect claim; set gold_defect_id to null and explain.
+- valid_non_defect: accurate requirement coverage, observation, or qualified caution that is **not** a defect; Gold ID null.
+- out_of_scope: inapplicable concern given the synthetic test context; Gold ID null. This is separate from a factual hallucination.
 
 Example JSON judgment (replace the finding_id with a real returned ID):
 
@@ -79,7 +81,7 @@ python -m career_ax.eval_submission score \
  --out runs/live/missing_cause_validation/eval.json
 ~~~
 
-The scorer rejects Stub/Fake, failed or structurally invalid live runs, input-hash mismatch, Gold-ID mismatch and unjudged findings. It reports Gold TP/FN/recall, human-judged false positives and finding precision for Analyst, Critic and their union. Duplicate hits on one Gold item count once for recall. Human judgment is fallible; Gold may be incomplete. The Analyst-only comparator is a role baseline, not an independently optimized single-agent baseline.
+The scorer rejects Stub/Fake, failed or structurally invalid live runs, input-hash mismatch, Gold-ID mismatch and unjudged findings. It reports Gold TP/FN/recall, human-judged false positives, valid non-defect findings, out-of-scope findings, and defect-finding precision for Analyst, Critic and their union. Defect precision excludes valid_non_defect and out_of_scope from its denominator; when no defect claim was made, it is null, not 100%. Duplicate hits on one Gold item count once for recall. Human judgment is fallible; Gold may be incomplete. The Analyst-only comparator is a role baseline, not an independently optimized single-agent baseline.
 
 Repeat for all three cases. Keep results local under runs/, excluded from Git. Do not claim general accuracy, career outcomes, or verified semantic fact-checking from these synthetic cases.
 
