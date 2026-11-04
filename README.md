@@ -164,9 +164,13 @@ See [PostgreSQL setup and limitations](docs/POSTGRESQL.md) for Docker Compose,
 contains **synthetic fixtures only**; do not upload real applications to a
 public GitHub repository.
 
-## Submission Review MVP
+## Submission Review MVP (2026-11-04 실모델 합성 평가)
 
-Sprint 02에서는 동일 T0 원본의 독립 Analyst/Critic 요청, 인용 검사, 보수적 통합과 유한 재시도를 구현했습니다.
-`submission-review --runner codex|openai --allow-external-model`로 실제 모델을 선택합니다.
-인증/네트워크가 필요하며 현재 Cloud의 실제 모델 응답 성공은 미검증입니다.
-`--runner stub`과 Fake 테스트는 모델을 호출하지 않습니다. [실행 방법과 검증 한계](docs/SUBMISSION_REVIEW.md)를 참고하세요.
+LangGraph에서 Analyst/Critic을 병렬·독립 실행하고 Python Verifier가 원문 인용의 구조를 검사합니다. 로컬 macOS 환경에서 ChatGPT 로그인 기반 Codex CLI로 **합성 자료 3건**의 실제 두 역할 출력을 생성하고, Gold와 분리된 오프라인 Eval을 실행했다는 사용자 제공 실행 증빙을 확보했습니다. 이것은 Codex Cloud 중첩 실행 실패 및 최초 JSON Schema 400 오류를 해결한 이후의 결과입니다.
+
+- Gold 결함: 합성 3건에 총 3개. 제안 판정 기준 Analyst 3/3, Critic 3/3, 합산 3/3; **Critic의 추가 Gold 검출 0개**.
+- 모든 Finding은 오탐·유효 비결함·범위 밖 지적까지 별도로 판정했습니다. **판정 초안은 AI가 제안했으며 독립적인 사람 승인 기록은 아직 확인되지 않았습니다.**
+- 실모델 이름·토큰·비용, 장기 일관성, 의미적 사실 검증, 실제 채용 결과 개선은 **미검증**입니다. Model 호출이 아닌 Stub/Fake는 성능 점수로 해석하지 않습니다.
+- 상세 실행 증빙·SHA256·점수·한계: [2026-11-04 Live MVP Results](docs/LIVE_MVP_RESULTS_20261104.md). 실행 방법: [Submission Review](docs/SUBMISSION_REVIEW.md), [Eval 가이드](docs/EVAL_MVP.md).
+
+기존 README의 AX Pilot 일반 연구 루프 안내와 별개로, 위 결과는 `submission-review` 워크플로에만 해당합니다. 실제 이력서·자기소개서 원본을 공개 저장소에 업로드하지 마세요.
