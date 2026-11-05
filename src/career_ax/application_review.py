@@ -1,7 +1,6 @@
 """Local, bounded multi-question application review; no inference during preview."""
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -14,15 +13,15 @@ from .submission_review import ReviewRequest, T0Source, build_review_graph, mark
 
 class DraftQuestion(StrictModel):
     question_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,40}$")
-    prompt: str = Field(min_length=10)
-    draft: str = Field(min_length=10)
+    prompt: str = Field(min_length=10, max_length=4000)
+    draft: str = Field(min_length=10, max_length=12000)
 
 
 class ApplicationDraft(StrictModel):
     application_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,50}$")
     company: str = Field(min_length=1)
     role: str = Field(min_length=1)
-    job_posting: str = Field(min_length=10)
+    job_posting: str = Field(min_length=10, max_length=12000)
     questions: list[DraftQuestion] = Field(min_length=1, max_length=6)
 
     @model_validator(mode="after")
@@ -73,9 +72,11 @@ def run_application(draft: ApplicationDraft, runner, output_dir: Path) -> dict[s
     output_dir.mkdir(parents=True, exist_ok=True)
     graph = build_review_graph(runner)
     rows = []
+    at_least_one_valid_role = False
     for question in draft.questions:
         request = review_request(draft, question)
         result = graph.invoke({"request": request})["result"]
+        at_least_one_valid_role = at_least_one_valid_role or bool(result.real_llm_executed)
         folder = output_dir / question.question_id
         folder.mkdir(parents=True, exist_ok=False)
         (folder / "review.json").write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
@@ -99,16 +100,42 @@ def run_application(draft: ApplicationDraft, runner, output_dir: Path) -> dict[s
         "application_id": draft.application_id,
         "execution_mode": runner.mode,
         "status": status,
-        "real_llm_executed": runner.mode == "codex" and all(
-            row["successful_roles"] for row in rows),
+        "real_llm_executed": at_least_one_valid_role,
+        "all_roles_completed": all(set(row["successful_roles"]) == {"analyst", "critic"} for row in rows),
         "question_count": len(rows),
         "questions": rows,
         "limits": [
             "COMPLETE means model calls and structural checks succeeded, not that the draft is safe to submit.",
             "Findings may overlap, be irrelevant, or be wrong; humans must inspect every claim against the full draft.",
-            "No Gold labels or past AI output were sent to either role.",
+            "Structured Gold labels and prior review channels are not part of the input schema; inspect source text for accidental contamination.",
             "Actual executed Codex model and billing/usage are not independently verified.",
         ],
     }
     (output_dir / "summary.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    md = [
+        f"# {draft.company} — {draft.role} 문항별 검토",
+        "",
+        f"- 전체 상태: **{status}** (모든 문항이 사실 검증된 것은 아님)",
+        f"- 문항 수: {len(rows)}",
+        "",
+        "| 문항 | Analyst Finding | Critic Finding | 상태 | 상세 보고서 |",
+        "| --- | ---: | ---: | --- | --- |",
+    ]
+    for row in rows:
+        qid = row["question_id"]
+        md.append(
+            f'| {qid} | {row["analyst_findings"]} | {row["critic_findings"]} '
+            f'| {row["status"]} | [{qid} 결과]({qid}/review.md) |'
+        )
+    md.extend([
+        "",
+        "## 검토 시 주의",
+        "",
+        "- Finding의 개수는 결함 개수가 아닙니다. 정상 관찰·주의사항·중복·오탐이 포함될 수 있습니다.",
+        "- 각 문항의 `review.md`를 열고 주장·인용·한계를 원문과 대조하세요.",
+        "- 합격 가능성이나 의미적 사실의 진실성은 자동 판정하지 않습니다.",
+        "- 각 역할의 성공 여부와 인용 검사 상태는 `summary.json`에서 확인하세요.",
+        "",
+    ])
+    (output_dir / "summary.md").write_text("\n".join(md), encoding="utf-8")
     return report
