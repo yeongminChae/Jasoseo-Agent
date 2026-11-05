@@ -72,13 +72,14 @@ ${EDITOR:-vi} private/imsec/application.json
 ```text
 runs/private/imsec-v1/
   summary.json
+  summary.md
   q1/review.json
   q1/review.md
   q2/review.json
   q2/review.md
 ```
 
-`summary.json`은 문항별 역할 실행 상태·Finding 개수·SHA256을 기록합니다. `review.md`에는 근거가 달린 지적들이 나옵니다. `COMPLETE`는 모델 응답 형식과 인용 위치 검사에 통과했다는 뜻일 뿐, **내용이 옳거나 제출해도 안전하다는 판정이 아닙니다**.
+`summary.md`는 문항별 검토 보고서를 여는 목차이고, `summary.json`은 문항별 역할 실행 상태·Finding 개수·SHA256을 기록합니다. `review.md`에는 근거가 달린 지적들이 나옵니다. `COMPLETE`는 모델 응답 형식과 인용 위치 검사에 통과했다는 뜻일 뿐, **내용이 옳거나 제출해도 안전하다는 판정이 아닙니다**.
 
 ## 4. 수정 → 전후 비교
 
