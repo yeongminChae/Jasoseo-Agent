@@ -62,6 +62,8 @@ def main(argv=None):
     if args.command == "application-review":
         from .application_review import ApplicationDraft, preview, run_application
         try:
+            if not args.request.resolve().is_relative_to((Path.cwd() / "private").resolve()):
+                raise ValueError("Application request must be saved under gitignored private/")
             draft = ApplicationDraft.model_validate_json(args.request.read_text(encoding="utf-8"))
             if args.dry_run:
                 print(json.dumps(preview(draft), ensure_ascii=False, indent=2))
@@ -70,6 +72,8 @@ def main(argv=None):
                 raise ValueError("Real application requires BOTH --allow-external-model and --allow-private-input; start with --dry-run")
             if args.output_dir is None:
                 raise ValueError("--output-dir is required; use a fresh directory under gitignored runs/")
+            if not args.output_dir.resolve().is_relative_to((Path.cwd() / "runs").resolve()):
+                raise ValueError("Output directory must be under gitignored runs/")
             if args.timeout_seconds <= 0:
                 raise ValueError("timeout must be positive")
             runner = CodexRunner(allow_external=True, timeout_seconds=args.timeout_seconds, model=args.codex_model)
