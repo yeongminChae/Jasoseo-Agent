@@ -71,6 +71,9 @@ def test_model_sees_only_one_question_and_the_original_job_text(tmp_path):
     assert len(runner.calls) == 4
     assert all(row["status"] == "COMPLETE" for row in report["questions"])
     assert (tmp_path / "run" / "summary.json").exists()
+    overview = (tmp_path / "run" / "summary.md").read_text(encoding="utf-8")
+    assert "q1/review.md" in overview and "q2/review.md" in overview
+    assert "transaction retry" not in overview
     assert (tmp_path / "run" / "q1" / "review.json").exists()
     assert (tmp_path / "run" / "q2" / "review.md").exists()
     for role, payload in runner.calls:
@@ -159,3 +162,14 @@ def test_cli_can_complete_using_fake_model_without_network(tmp_path, monkeypatch
     assert response["status"] == "COMPLETE"
     assert response["real_llm_executed"] is False
     assert (tmp_path / "runs" / "private-test" / "summary.json").exists()
+
+
+def test_application_input_size_is_bounded():
+    data = sample_data()
+    data["questions"][0]["draft"] = "x" * 12001
+    with pytest.raises(ValidationError):
+        ApplicationDraft.model_validate(data)
+    data = sample_data()
+    data["job_posting"] = "x" * 12001
+    with pytest.raises(ValidationError):
+        ApplicationDraft.model_validate(data)
