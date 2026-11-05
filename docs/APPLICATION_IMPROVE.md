@@ -47,7 +47,7 @@ open private/imsec/application-v2.json
 open runs/private/imsec-improve-v1/recheck/summary.md
 ```
 
-If Codex usage quota or runtime is tight, **omit** `--recheck` on the live command. You still get automated triage and V2 candidate; you can recheck after manual fact verification as a separate step (use a fresh run folder and updated V2 request). A completely automated full loop costs approximately 12 role invocations for four questions (up to 28 attempts if every Codex reviewer hits a retry ceiling; note Editor currently has no retry). These calls use the authenticated Codex CLI, not the paid OpenAI API backend; ChatGPT plan usage limits may still apply.
+If Codex usage quota or runtime is tight, **omit** `--recheck` on the live command. You still get automated triage and V2 candidate; you can recheck after manual fact verification as a separate step (use a fresh run folder and updated V2 request). A completely automated full loop costs approximately 12 role invocations for four questions (up to 20 attempts: four Editor calls plus up to sixteen Analyst/Critic calls; Editor currently has no retry). These calls use the authenticated Codex CLI, not the paid OpenAI API backend; ChatGPT plan usage limits may still apply.
 
 All new outputs are private, local files:
 
