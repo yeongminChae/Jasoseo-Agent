@@ -36,6 +36,17 @@ def parser():
     application.add_argument("--timeout-seconds", type=int, default=180)
     application.add_argument("--codex-model", default=None)
     application.add_argument("--output-dir", type=Path, help="New run directory, e.g. runs/private/imsec-20261105")
+    improve = sub.add_parser("application-improve", help="Auto-triage V1 findings, propose V2, optionally run V2 review")
+    improve.add_argument("--request", type=Path, required=True, help="Original V1 application under private/")
+    improve.add_argument("--review-dir", type=Path, required=True, help="Completed V1 review under runs/")
+    improve.add_argument("--output-dir", type=Path, required=True, help="Fresh improvement output folder under runs/")
+    improve.add_argument("--v2-request", type=Path, required=True, help="New V2 application JSON under private/")
+    improve.add_argument("--dry-run", action="store_true", help="Check all V1 reviews and hashes without any model calls")
+    improve.add_argument("--recheck", action="store_true", help="After proposing V2, run fresh Analyst/Critic on it")
+    improve.add_argument("--allow-external-model", action="store_true")
+    improve.add_argument("--allow-private-input", action="store_true")
+    improve.add_argument("--timeout-seconds", type=int, default=180)
+    improve.add_argument("--codex-model", default=None)
     ev=sub.add_parser("eval-dev",help="Run synthetic-only Mock smoke suite (NOT real AI quality Eval)")
     ev.add_argument("--output",type=Path,default=Path("runs/mock_smoke.json"))
     inv=sub.add_parser("inventory",help="Inspect verified manifest inputs")
@@ -59,6 +70,52 @@ def parser():
 
 def main(argv=None):
     args=parser().parse_args(argv)
+    if args.command == "application-improve":
+        from .application_review import ApplicationDraft
+        from .application_improve import preview_improvement, improve_application
+        try:
+            cwd = Path.cwd()
+            if not args.request.resolve().is_relative_to((cwd / "private").resolve()):
+                raise ValueError("--request must be under gitignored private/")
+            if not args.v2_request.resolve().is_relative_to((cwd / "private").resolve()):
+                raise ValueError("--v2-request must be under gitignored private/")
+            for path in (args.review_dir, args.output_dir):
+                if not path.resolve().is_relative_to((cwd / "runs").resolve()):
+                    raise ValueError("--review-dir and --output-dir must be under gitignored runs/")
+            original = ApplicationDraft.model_validate_json(args.request.read_text(encoding="utf-8"))
+            # Offline preflight: reject wrong snapshot, failed roles or stale evidence BEFORE model calls.
+            if args.dry_run:
+                result = preview_improvement(original, args.review_dir)
+                print(json.dumps(result, ensure_ascii=False, indent=2))
+                return 0
+            if not args.allow_external_model or not args.allow_private_input:
+                raise ValueError("Improvement requires BOTH --allow-external-model and --allow-private-input")
+            if args.timeout_seconds <= 0:
+                raise ValueError("timeout must be positive")
+            # Do not send any content until all preconditions have been checked.
+            preview_improvement(original, args.review_dir)
+            if args.output_dir.exists():
+                raise ValueError("--output-dir already exists: select a new path to preserve evidence")
+            if args.v2_request.exists():
+                raise ValueError("--v2-request already exists: select a new path to preserve drafts")
+            editor = CodexRunner(allow_external=True, timeout_seconds=args.timeout_seconds,
+                                 model=args.codex_model)
+            result = improve_application(original, args.review_dir, editor, args.output_dir,
+                                         args.v2_request,
+                                         recheck_runner=editor if args.recheck else None)
+            print(json.dumps({
+                "status": result["status"],
+                "original_findings": result["original_findings"],
+                "classified_findings": result["classified_findings"],
+                "unique_issue_groups": result["unique_issue_groups"],
+                "v2_request_file": result["v2_request_file"],
+                "recheck_status": result["recheck_status"],
+                "report": str(args.output_dir / "improvement.md"),
+            }, ensure_ascii=False, indent=2))
+            return 0 if result["recheck_status"] in {"COMPLETE", "NOT_REQUESTED"} else 2
+        except (OSError, ValueError, RuntimeError) as exc:
+            print(f"ERROR [{type(exc).__name__}]: {exc}", file=sys.stderr)
+            return 2
     if args.command == "application-review":
         from .application_review import ApplicationDraft, preview, run_application
         try:
