@@ -27,6 +27,15 @@ def parser():
     review.add_argument("--codex-model", default=None, help="Optional explicitly selected Codex CLI model; requires availability in your account")
     review.add_argument("--timeout-seconds", type=int, default=60)
     review.add_argument("--output-dir", type=Path, default=Path("runs/submission-review"))
+    application = sub.add_parser("application-review", help="Private multi-question T0 review; use --dry-run before model calls")
+    application.add_argument("--request", type=Path, required=True, help="Private application JSON; keep inside gitignored private/")
+    application.add_argument("--dry-run", action="store_true", help="Validate and display only counts/hashes; no model call")
+    application.add_argument("--runner", choices=["codex"], default="codex", help="ChatGPT-authenticated Codex CLI, not paid API")
+    application.add_argument("--allow-external-model", action="store_true", help="Explicit permission to send redacted content")
+    application.add_argument("--allow-private-input", action="store_true", help="Separate acknowledgement for real applicant drafts")
+    application.add_argument("--timeout-seconds", type=int, default=180)
+    application.add_argument("--codex-model", default=None)
+    application.add_argument("--output-dir", type=Path, help="New run directory, e.g. runs/private/imsec-20261105")
     ev=sub.add_parser("eval-dev",help="Run synthetic-only Mock smoke suite (NOT real AI quality Eval)")
     ev.add_argument("--output",type=Path,default=Path("runs/mock_smoke.json"))
     inv=sub.add_parser("inventory",help="Inspect verified manifest inputs")
@@ -50,6 +59,26 @@ def parser():
 
 def main(argv=None):
     args=parser().parse_args(argv)
+    if args.command == "application-review":
+        from .application_review import ApplicationDraft, preview, run_application
+        try:
+            draft = ApplicationDraft.model_validate_json(args.request.read_text(encoding="utf-8"))
+            if args.dry_run:
+                print(json.dumps(preview(draft), ensure_ascii=False, indent=2))
+                return 0
+            if not args.allow_external_model or not args.allow_private_input:
+                raise ValueError("Real application requires BOTH --allow-external-model and --allow-private-input; start with --dry-run")
+            if args.output_dir is None:
+                raise ValueError("--output-dir is required; use a fresh directory under gitignored runs/")
+            if args.timeout_seconds <= 0:
+                raise ValueError("timeout must be positive")
+            runner = CodexRunner(allow_external=True, timeout_seconds=args.timeout_seconds, model=args.codex_model)
+            result = run_application(draft, runner, args.output_dir)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0 if result["status"] == "COMPLETE" else 2
+        except (OSError, ValueError, RuntimeError) as exc:
+            print(f"ERROR [{type(exc).__name__}]: {exc}", file=sys.stderr)
+            return 2
     if args.command == "submission-review":
         from .submission_review import (
             ReviewRequest, SubmissionStubRunner, build_review_graph,
