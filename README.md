@@ -174,3 +174,15 @@ LangGraph에서 Analyst/Critic을 병렬·독립 실행하고 Python Verifier가
 - 상세 실행 증빙·SHA256·점수·한계: [2026-11-04 Live MVP Results](docs/LIVE_MVP_RESULTS_20261104.md). 실행 방법: [Submission Review](docs/SUBMISSION_REVIEW.md), [Eval 가이드](docs/EVAL_MVP.md).
 
 기존 README의 AX Pilot 일반 연구 루프 안내와 별개로, 위 결과는 `submission-review` 워크플로에만 해당합니다. 실제 이력서·자기소개서 원본을 공개 저장소에 업로드하지 마세요.
+
+
+### iM증권 11월 8일 지원 준비 — 실제 문항별 검토
+
+신규 `application-review` 명령은 **본인이 제공한 비공개 채용공고 발췌 + 문항 + 초안**을 문항별 독립 Analyst/Critic 두 번 호출로 검토하고, 원문 인용 검사와 JSON/Markdown 보고서를 각 문항별로 기록합니다. 아직 **iM증권 실제 자소서 원문으로 실행한 결과는 없으며**, 자동 자기소개서 작성·합격 예측 기능도 아닙니다.
+
+- `--dry-run`: 모델 호출 없이 문항 수·글자 수·입력 해시·예상 호출 수만 미리보기
+- 실제 실행: **`--allow-external-model` + `--allow-private-input` 두 가지 명시 동의 필수**
+- 비공개 입력은 `private/`, 결과는 `runs/` 아래만 허용; 기존 결과가 있는 폴더는 덮어쓰기 차단
+- 정상 모델 호출 수는 문항당 두 번이며, 일시적 오류 재시도 시 최대 네 번. 실모델명과 토큰 사용량 자동 수집은 없음.
+
+[실제 지원서 적용·입력 예시·재검토 절차](docs/IMSEC_APPLICATION_MVP.md)를 참조하세요. 실제 자료 전송 전에 본인이 익명화와 입력 범위를 검증해야 합니다.
