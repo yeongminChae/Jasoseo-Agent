@@ -186,3 +186,16 @@ LangGraph에서 Analyst/Critic을 병렬·독립 실행하고 Python Verifier가
 - 정상 모델 호출 수는 문항당 두 번이며, 일시적 오류 재시도 시 최대 네 번. 실모델명과 토큰 사용량 자동 수집은 없음.
 
 [실제 지원서 적용·입력 예시·재검토 절차](docs/IMSEC_APPLICATION_MVP.md)를 참조하세요. 실제 자료 전송 전에 본인이 익명화와 입력 범위를 검증해야 합니다.
+
+
+### V1 37건 Finding 자동 통합 및 V2 개선 명령
+
+실제 iM증권 초안 4개를 검토한 결과, Analyst/Critic 출력에 **37개 Finding**이 관찰되었습니다. 수작업으로 전부 판정하지 않도록 `application-improve` 명령을 구현했습니다. 기존 V1 결과의 SHA256·역할 성공·인용 검증을 검사한 뒤, **Codex Editor 역할이 모든 Finding을 분류·중복 그룹화하고 600자 이내 문항별 V2를 제안**합니다. `--recheck`를 지정하면 수정된 V2도 Analyst/Critic으로 다시 검토합니다. 모든 산출물은 비공개 로컬 경로에 저장하고 V1은 덮어쓰지 않습니다.
+
+- `--dry-run`: 유효한 기존 리뷰와 대상 Finding 수 확인. AI 호출 없음.
+- 실제 실행: `--allow-external-model --allow-private-input` 별도 명시 동의 필요.
+- `improvement.md`: 문항별 중요 이슈 그룹·V2 제안·별도 사실 확인 목록.
+- `improvement.json`: AI가 제안한 **전 Finding 분류**와 개별 근거. `private/imsec/application-v2.json`: 수정 가능 후보.
+- V2의 사실성·회사 활동 검증·원문 질문 충족·제출 여부는 본인 최종 판단 대상. **새 수치 추가 여부만 기계적으로 점검**하며 의미 검증이나 채용 안전 보장은 하지 않습니다.
+
+[자동 분류 → 수정 → 재검토 사용 가이드](docs/APPLICATION_IMPROVE.md).
