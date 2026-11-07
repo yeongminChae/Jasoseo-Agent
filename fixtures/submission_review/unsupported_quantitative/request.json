@@ -1,0 +1,19 @@
+{
+  "request_id": "synthetic-unsupported-quantitative-001",
+  "sources": [
+    {
+      "source_id": "SYN_QUANT_QUESTION",
+      "purpose": "question",
+      "phase": "t0_input",
+      "provenance": "synthetic",
+      "text": "업무 개선 경험과 본인 기여를 작성하고, 성과 수치를 제시할 경우 측정 기준과 근거를 설명하세요."
+    },
+    {
+      "source_id": "SYN_QUANT_SUBMISSION",
+      "purpose": "submission",
+      "phase": "t0_input",
+      "provenance": "synthetic",
+      "text": "가상의 동아리 주문 접수 양식을 정리하여 접수 속도를 50% 개선했습니다.\n저는 항목을 통합하고 담당자에게 사용 방법을 안내했습니다.\n개선 전후의 접수 시간이나 측정 횟수는 기록하지 않았습니다."
+    }
+  ]
+}

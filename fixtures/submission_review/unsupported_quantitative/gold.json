@@ -1,0 +1,21 @@
+{
+  "request_id": "synthetic-unsupported-quantitative-001",
+  "evaluation_only": true,
+  "note": "성과 개선 50% 주장과 측정 근거 부재의 불일치만 합성 Gold로 고정한다.",
+  "expected_defects": [
+    {
+      "defect_id": "GOLD_UNSUPPORTED_FIFTY_PERCENT",
+      "category": "unsupported_quantitative_claim",
+      "description": "접수 속도 50% 개선을 주장하지만 전후 시간·횟수·측정 기준이 제시되지 않으며 측정 기록이 없다고 설명한다.",
+      "required_by_source_id": "SYN_QUANT_QUESTION",
+      "affected_source_id": "SYN_QUANT_SUBMISSION"
+    }
+  ],
+  "present_elements": [
+    "수정 작업: 항목 통합과 사용 방법 안내"
+  ],
+  "scoring_limits": [
+    "수치를 추측해 만들어내지 않는다.",
+    "인용 존재와 주장 타당성은 구분한다."
+  ]
+}

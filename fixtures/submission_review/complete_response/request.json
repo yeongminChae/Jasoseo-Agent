@@ -1,0 +1,19 @@
+{
+  "request_id": "synthetic-complete-response-001",
+  "sources": [
+    {
+      "source_id": "SYN_COMPLETE_QUESTION",
+      "purpose": "question",
+      "phase": "t0_input",
+      "provenance": "synthetic",
+      "text": "동아리 물품 전달 지연을 해결한 경험을 문제 원인, 본인 조치, 효과 검증 방법과 결과 중심으로 기술하세요."
+    },
+    {
+      "source_id": "SYN_COMPLETE_SUBMISSION",
+      "purpose": "submission",
+      "phase": "t0_input",
+      "provenance": "synthetic",
+      "text": "가상 동아리의 물품 전달 지연 원인은 담당자별 인수 시각을 공유하지 않아 전달 순서가 충돌했던 점입니다.\n저는 공동 작업표에 담당자와 인수 예정 시각을 등록하고 일일 확인 회의를 진행했습니다.\n변경 전후 각각 2주간 지연 건수를 동일한 기준으로 집계한 결과 6건에서 1건으로 감소했습니다."
+    }
+  ]
+}

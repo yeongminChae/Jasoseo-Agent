@@ -1,0 +1,26 @@
+{
+  "request_id": "synthetic-submission-001",
+  "sources": [
+    {
+      "source_id": "SYN_QUESTION",
+      "purpose": "question",
+      "phase": "t0_input",
+      "provenance": "synthetic",
+      "text": "가상 문항 1: 협업 경험과 본인의 역할을 설명하세요."
+    },
+    {
+      "source_id": "SYN_SUBMISSION",
+      "purpose": "submission",
+      "phase": "t0_input",
+      "provenance": "synthetic",
+      "text": "가상의 동아리에서 일정표를 정리했습니다.\n가상의 팀원과 작업 순서를 조정했습니다."
+    },
+    {
+      "source_id": "SYN_RUBRIC",
+      "purpose": "rubric",
+      "phase": "t0_input",
+      "provenance": "synthetic",
+      "text": "문항과 답변의 대응, 인용 근거, 불확실성을 구분합니다."
+    }
+  ]
+}

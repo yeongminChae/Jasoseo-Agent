@@ -31,5 +31,7 @@ jobs:
         run: psql -h localhost -U jasoseo -d jasoseo -v ON_ERROR_STOP=1 -f database/migrations/V1__research_store.sql
       - name: Test SQLite and PostgreSQL
         run: python -m pytest -q
+      - name: Submission Review synthetic Stub smoke (not LLM quality)
+        run: python -m career_ax submission-review --request fixtures/submission_review/request.json --runner stub --output-dir runs/submission-review
       - name: Mock PostgreSQL CLI smoke
         run: python -m career_ax run --storage postgres --runner mock --goal '가상 문항 순서 오류를 분석하고 다음 검증 질문을 조사하라' --output-dir runs

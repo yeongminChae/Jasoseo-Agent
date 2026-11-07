@@ -1,0 +1,19 @@
+{
+  "request_id": "synthetic-missing-cause-validation-001",
+  "sources": [
+    {
+      "source_id": "SYN_EXPERIMENT_QUESTION",
+      "purpose": "question",
+      "phase": "t0_input",
+      "provenance": "synthetic",
+      "text": "가상 동아리 활동에서 발생한 문제를 해결한 경험을 설명하세요. 문제의 원인, 본인이 실행한 해결 방법, 해결 효과를 확인한 검증 방법과 결과를 모두 구체적으로 작성하세요."
+    },
+    {
+      "source_id": "SYN_EXPERIMENT_SUBMISSION",
+      "purpose": "submission",
+      "phase": "t0_input",
+      "provenance": "synthetic",
+      "text": "가상 동아리의 행사 준비 과정에서 물품 전달이 지연되는 문제가 발생했습니다.\n저는 공동 작업표를 만들고 담당자별 물품 목록과 전달 예정 시간을 적었습니다.\n이후 매일 회의를 열어 작업표를 함께 확인하도록 했습니다."
+    }
+  ]
+}
