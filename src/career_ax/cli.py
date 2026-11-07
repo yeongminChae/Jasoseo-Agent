@@ -47,6 +47,15 @@ def parser():
     improve.add_argument("--allow-private-input", action="store_true")
     improve.add_argument("--timeout-seconds", type=int, default=180)
     improve.add_argument("--codex-model", default=None)
+    history = sub.add_parser("application-history-finish", help="Historical failure audit -> revision -> blind A/B -> final red-team")
+    history.add_argument("--request", type=Path, required=True, help="Current private application JSON")
+    history.add_argument("--history", type=Path, required=True, help="Private historical evidence packet JSON")
+    history.add_argument("--output-dir", type=Path, required=True, help="New run directory below runs/")
+    history.add_argument("--dry-run", action="store_true", help="Offline checks and hashes only")
+    history.add_argument("--allow-external-model", action="store_true")
+    history.add_argument("--allow-private-input", action="store_true")
+    history.add_argument("--timeout-seconds", type=int, default=240)
+    history.add_argument("--codex-model", default=None)
     ev=sub.add_parser("eval-dev",help="Run synthetic-only Mock smoke suite (NOT real AI quality Eval)")
     ev.add_argument("--output",type=Path,default=Path("runs/mock_smoke.json"))
     inv=sub.add_parser("inventory",help="Inspect verified manifest inputs")
@@ -70,6 +79,46 @@ def parser():
 
 def main(argv=None):
     args=parser().parse_args(argv)
+    if args.command == "application-history-finish":
+        from .application_review import ApplicationDraft
+        from .application_history_finish import preview as history_preview, run as history_run, _json, _sha
+        try:
+            cwd = Path.cwd()
+            if not args.request.resolve().is_relative_to((cwd / "private").resolve()):
+                raise ValueError("--request must be under gitignored private/")
+            if not args.history.resolve().is_relative_to((cwd / "private").resolve()):
+                raise ValueError("--history must be under gitignored private/")
+            if not args.output_dir.resolve().is_relative_to((cwd / "runs").resolve()):
+                raise ValueError("--output-dir must be under gitignored runs/")
+            draft = ApplicationDraft.model_validate_json(args.request.read_text(encoding="utf-8"))
+            packet = _json(args.history)
+            request_sha, history_sha = _sha(args.request), _sha(args.history)
+            preflight = history_preview(draft, packet, request_sha=request_sha, history_sha=history_sha)
+            if args.dry_run:
+                print(json.dumps(preflight, ensure_ascii=False, indent=2))
+                return 0
+            if not args.allow_external_model or not args.allow_private_input:
+                raise ValueError("Requires BOTH --allow-external-model and --allow-private-input")
+            if args.timeout_seconds <= 0:
+                raise ValueError("--timeout-seconds must be positive")
+            if args.output_dir.exists():
+                raise ValueError("Output folder already exists; choose a fresh path")
+            runner = CodexRunner(allow_external=True, timeout_seconds=args.timeout_seconds,
+                                 model=args.codex_model)
+            report = history_run(draft, packet, args.output_dir, runner,
+                                 request_sha=request_sha, history_sha=history_sha)
+            print(json.dumps({"status": report["status"],
+                              "question_selections": [
+                                  {"question_id": q["question_id"], "selected": q["selected"],
+                                   "redteam": q["redteam_status"]} for q in report["questions"]
+                              ],
+                              "candidate_file": str(args.output_dir / "candidate.json"),
+                              "report": str(args.output_dir / "summary.md")},
+                             ensure_ascii=False, indent=2))
+            return 0 if report["status"] == "CANDIDATE_HUMAN_FACT_CHECK_REQUIRED" else 2
+        except (OSError, ValueError, RuntimeError) as exc:
+            print(f"ERROR [{type(exc).__name__}]: {exc}", file=sys.stderr)
+            return 2
     if args.command == "application-improve":
         from .application_review import ApplicationDraft
         from .application_improve import preview_improvement, improve_application
